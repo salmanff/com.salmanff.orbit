@@ -1,0 +1,64 @@
+{
+  "identifier": "com.salmanff.orbit",
+  "display_name":"Orbit",
+  "version": "0.0.300",
+  "description": "A tool to build web sites",
+  "app_url": "https://github.com/salmanff/com.salmanff.orbit",
+  "manifest_url": "https://github.com/salmanff/com.salmanff.orbit/blob/main/manifest.json",
+
+	"pages": {
+		"index": {
+			"page_title":"orbit",
+			"html_file":"index.html",
+			"css_files": ["static/index.css"],
+			"script_files": ["dgelements.js", "index.js"]
+		},
+
+    "preview": {
+      "page_title":"orbit preview",
+			"html_file":"preview.html",
+			"css_files": [],
+			"script_files": ["preview.js"]
+    }
+	},
+
+  "files": {
+    "do_not_allow":false,
+    "post_data_html_id":"file",
+    "strictly_Adhere_To_schema":false,
+
+    "donot_auto_enumerate_duplicates":false,
+    "allowed_file_types": null,
+
+    "field_names": {
+      "name": {
+        "description":"File Name",
+        "type": "string",
+        "required":true
+      }
+    }
+
+  },
+
+  "public_pages": {
+  },
+
+  "app_tables": {
+    "pages": {
+      "field_names":{
+        "main": {"type":"string", "description":"Main page html file"},
+        "js": {"type":"array", "description":"Related js files"},
+        "css": {"type":"string", "description":"Related js files"}
+      }
+    }
+  },
+
+  "permissions":
+    [{
+      "name": "publish_file",
+      "type": "upload_pages",
+      "table_id": "com.salmanff.orbit.files",
+      "description": "Make files public to publish web pages"
+      }
+    ]
+}
