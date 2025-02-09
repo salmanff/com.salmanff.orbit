@@ -530,7 +530,7 @@ const publishFile = function (pageObj, mainPage) {
         publicid = '@' + freezrMeta.userId + '/com.salmanff.orbit.files/' + publicid
         // TODO CHECK PORDER - fullName first or app?
       } else {
-        if (!freezrMeta.adminUser && !freezrMeta.publisherUser) publicid = '@' + freezrMeta.userId + '/' + publicid
+        if (!freezrMeta.adminUser || !freezrMeta.publisherUser) publicid = '@' + freezrMeta.userId + '/com.salmanff.orbit.files/' + publicid
         publicid = publicid.split('.')
         publicid.pop()
         publicid = publicid.join('.')
