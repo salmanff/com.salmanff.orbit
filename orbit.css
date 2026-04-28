@@ -1,0 +1,1511 @@
+.orbit-root {
+  --orbit-bg: #0f1419;
+  --orbit-panel: #151b22;
+  --orbit-border: #30363d;
+  --orbit-text: #e6edf3;
+  --orbit-muted: #8b949e;
+  --orbit-accent: #58a6ff;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  color: var(--orbit-text);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+.orbit-error {
+  color: #f85149;
+  padding: 1rem;
+}
+
+.orbit-left-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.6rem;
+  border-bottom: 1px solid var(--orbit-border);
+  background: var(--orbit-panel);
+}
+
+.orbit-left-toolbar .orbit-select {
+  min-width: 0;
+  flex: 1;
+}
+
+.orbit-left-toolbar .globe-toolbar {
+  margin-right: 0.15rem;
+}
+
+.orbit-right-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 80px 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--orbit-border);
+  background: var(--orbit-panel);
+}
+
+
+.orbit-select {
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  min-width: 10rem;
+}
+
+.orbit-btn {
+  background: var(--orbit-accent);
+  color: #0d1117;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.orbit-btn:hover {
+  filter: brightness(1.08);
+}
+
+.orbit-btn-secondary {
+  background: transparent;
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+}
+
+.orbit-meta {
+  font-size: 12px;
+  color: var(--orbit-muted);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-hint {
+  font-size: 11px;
+  color: var(--orbit-muted);
+}
+
+.orbit-pub-link {
+  font-size: 12px;
+  color: var(--orbit-accent);
+  margin-right: 0.25rem;
+}
+
+/* ── Chat layout ─────────────────────────────── */
+.orbit-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.orbit-chat-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--orbit-border);
+  flex-shrink: 0;
+}
+
+.orbit-chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Thread groups ───────────────────────────── */
+.orbit-thread {
+  margin-bottom: 0.25rem;
+  border: 1px solid var(--orbit-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.orbit-thread--active {
+  border-color: var(--orbit-accent);
+}
+
+.orbit-thread-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 12px;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  user-select: none;
+  background: var(--orbit-panel);
+}
+
+.orbit-thread-summary:hover {
+  color: var(--orbit-text);
+}
+
+.orbit-thread-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-thread-meta {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.orbit-thread-file-count {
+  font-size: 10px;
+  color: var(--orbit-accent);
+}
+
+.orbit-thread-ts {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+/* When expanded: hide preview, meta snaps left */
+.orbit-thread[open] > .orbit-thread-summary .orbit-thread-preview {
+  display: none;
+}
+
+.orbit-thread[open] > .orbit-thread-summary .orbit-thread-meta {
+  margin-left: 0;
+}
+
+.orbit-thread-body {
+  padding: 0.5rem 0.6rem;
+}
+
+/* ── Thread summary (collapsed) ──────────────── */
+.orbit-thread-q {
+  color: var(--orbit-text);
+}
+
+.orbit-thread-count {
+  font-size: 10px;
+  background: var(--orbit-border);
+  color: var(--orbit-text);
+  border-radius: 3px;
+  padding: 0 0.3rem;
+  min-width: 1.1em;
+  text-align: center;
+}
+
+/* ── Exchange folding ────────────────────────── */
+.orbit-exchange {
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid var(--orbit-border);
+  padding-bottom: 0.35rem;
+}
+
+.orbit-exchange:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.orbit-exchange-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 12px;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.2rem 0;
+  list-style: none;
+}
+
+.orbit-exchange-summary::-webkit-details-marker {
+  display: none;
+}
+
+.orbit-exchange-summary::before {
+  content: '▸';
+  flex-shrink: 0;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+
+.orbit-exchange[open] > .orbit-exchange-summary::before {
+  transform: rotate(90deg);
+}
+
+.orbit-exchange-q {
+  color: var(--orbit-text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-exchange-meta {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* When expanded: hide preview, meta snaps left */
+.orbit-exchange[open] > .orbit-exchange-summary .orbit-exchange-q {
+  display: none;
+}
+
+.orbit-exchange[open] > .orbit-exchange-summary .orbit-exchange-meta {
+  margin-left: 0;
+}
+
+/* ── Messages ────────────────────────────────── */
+.orbit-msg {
+  margin-bottom: 0.6rem;
+}
+
+.orbit-msg:last-child {
+  margin-bottom: 0;
+}
+
+.orbit-msg-user {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-bottom: 0.15rem;
+}
+
+.orbit-msg-user-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--orbit-accent);
+  flex-shrink: 0;
+}
+
+.orbit-msg-user-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.orbit-msg-ts {
+  font-size: 10px;
+  color: var(--orbit-muted);
+  opacity: 0.6;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.orbit-msg-assistant {
+  margin-top: 0.25rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--orbit-border);
+}
+
+.orbit-msg-explanation {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--orbit-text);
+  font-size: 13px;
+  margin-bottom: 0.35rem;
+}
+
+/* ── Thinking block ──────────────────────────── */
+.orbit-thinking {
+  margin-bottom: 0.35rem;
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.orbit-thinking > summary {
+  font-size: 11px;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.25rem 0.4rem;
+  background: var(--orbit-panel);
+}
+
+.orbit-thinking-pre {
+  font-size: 11px;
+  color: var(--orbit-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow: auto;
+  margin: 0;
+  padding: 0.35rem 0.4rem;
+}
+
+/* ── File change items ───────────────────────── */
+.orbit-file-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+}
+
+.orbit-file-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-size: 12px;
+}
+
+.orbit-file-icon {
+  flex-shrink: 0;
+  color: #3fb950;
+  margin-top: 1px;
+}
+
+.orbit-file-icon--pending {
+  color: var(--orbit-accent);
+}
+
+.orbit-file-icon--error {
+  color: #f85149;
+}
+
+.orbit-file-name {
+  font-weight: 600;
+  color: var(--orbit-text);
+  flex-shrink: 0;
+}
+
+.orbit-file-snippet {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
+  color: var(--orbit-muted);
+  max-height: 3.9em;
+  line-height: 1.3;
+  overflow: hidden;
+  white-space: pre;
+  text-overflow: ellipsis;
+  background: var(--orbit-panel);
+  border-radius: 3px;
+  padding: 0.15rem 0.3rem;
+  /* Anchor content to the bottom of the box so the newest lines stay visible
+     as the preview updates during streaming. */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+/* ── Streaming ───────────────────────────────── */
+.orbit-streaming-wrap {
+  margin-top: 0.35rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--orbit-accent);
+}
+
+.orbit-spinner-inline {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--orbit-border);
+  border-top-color: var(--orbit-accent);
+  border-radius: 50%;
+  animation: orbit-spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── Globe idle (non-spinning) state ───────────────────────────────────── */
+/* By default the toolbar globe is idle; class is removed while chatBusy   */
+.globe-toolbar.orbit-globe-idle .sphere,
+.globe-toolbar.orbit-globe-idle .orbit-ring,
+.globe-toolbar.orbit-globe-idle .orbit-dot {
+  animation-play-state: paused;
+}
+.globe-toolbar.orbit-globe-idle::before {
+  animation-play-state: paused;
+}
+
+/* ── Editor locked overlay ──────────────────────────────────────────────── */
+.orbit-editor-locked {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 20, 25, 0.72);
+  backdrop-filter: blur(2px);
+  pointer-events: all;
+}
+
+.orbit-editor-locked.hidden {
+  display: none;
+}
+
+.orbit-editor-locked-msg {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--orbit-panel);
+  border: 1px solid var(--orbit-accent);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--orbit-text);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+@keyframes orbit-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Reply box (inside active thread) ────────── */
+.orbit-reply-box {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--orbit-border);
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-end;
+}
+
+.orbit-reply-input {
+  flex: 1;
+  min-height: 2rem;
+}
+
+.orbit-reply-box .orbit-btn-sm {
+  flex-shrink: 0;
+  padding: 0.35rem 0.7rem;
+}
+
+/* ── New Chat input (bottom of panel) ────────── */
+.orbit-chat-bottom {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem 0.6rem;
+  border-top: 1px solid var(--orbit-border);
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-end;
+}
+
+.orbit-chat-bottom .orbit-chat-input {
+  flex: 1;
+  min-height: 2rem;
+}
+
+.orbit-chat-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--orbit-panel);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font: inherit;
+  font-size: 13px;
+  /* Height is managed by bindAutoGrowTextarea() in JS, which grows the box
+     as the user types up to a max, then enables internal scrolling. We keep
+     the manual resize handle disabled so the two don't fight. */
+  resize: none;
+  min-height: 2.2rem;
+  overflow-y: hidden;
+  line-height: 1.35;
+}
+
+.orbit-chat-perm {
+  margin: 0;
+  padding: 0 0.75rem;
+  font-size: 12px;
+}
+
+.orbit-body {
+  flex: 1 1 0;
+  display: flex;
+  min-height: 0;
+  align-items: stretch;
+}
+
+body.orbit-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.orbit-left {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  min-height: 0;
+  background: var(--orbit-bg);
+  border-right: 1px solid transparent;
+}
+
+.orbit-splitter {
+  flex: 0 0 6px;
+  width: 6px;
+  margin: 0 -3px;
+  padding: 0 3px;
+  cursor: col-resize;
+  touch-action: none;
+  flex-shrink: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 2px,
+    var(--orbit-border) 2px,
+    var(--orbit-border) 4px,
+    transparent 4px,
+    transparent 100%
+  );
+  background-clip: content-box;
+  align-self: stretch;
+}
+
+.orbit-splitter:hover {
+  background: linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 1px,
+    var(--orbit-accent) 1px,
+    var(--orbit-accent) 5px,
+    transparent 5px,
+    transparent 100%
+  );
+  background-clip: content-box;
+}
+
+.orbit-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+  background: var(--orbit-bg);
+}
+
+.orbit-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--orbit-border);
+}
+
+.orbit-tabs button {
+  flex: 1;
+  padding: 0.5rem 0.35rem;
+  background: transparent;
+  border: none;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.orbit-tabs button.active {
+  color: var(--orbit-text);
+  border-bottom: 2px solid var(--orbit-accent);
+}
+
+.orbit-left-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.orbit-left-body:has(.orbit-chat) {
+  overflow: hidden;
+  padding: 0;
+}
+
+.orbit-right-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.orbit-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.orbit-panel.hidden {
+  display: none;
+}
+
+.orbit-editor-mount {
+  flex: 1;
+  min-height: 320px;
+}
+
+.orbit-editor-mount .cm-editor {
+  height: 100%;
+  min-height: 320px;
+}
+
+.orbit-preview-frame {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  border: none;
+  background: #fff;
+}
+
+/* ── Image preview ──────────────────────────── */
+.orbit-image-preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  overflow: auto;
+  background: var(--orbit-bg);
+}
+
+.orbit-image-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+
+/* ── File tree ──────────────────────────────── */
+.orbit-tree {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.orbit-tree li {
+  margin-bottom: 0.15rem;
+}
+
+.orbit-tree-root {
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+.orbit-tree-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.orbit-tree-toggle {
+  font-size: 9px;
+  color: var(--orbit-muted);
+  padding: 0 3px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.orbit-tree-folder-btn {
+  font-weight: 600;
+}
+
+.orbit-tree-file {
+  font-size: 13px;
+}
+
+/* ── Folder view ────────────────────────────── */
+.orbit-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--orbit-border);
+}
+
+.orbit-folder-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--orbit-text);
+}
+
+.orbit-back-btn {
+  font-size: 12px;
+}
+
+.orbit-folder-files {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.orbit-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--orbit-border);
+}
+
+.orbit-file-row:last-child {
+  border-bottom: none;
+}
+
+.orbit-file-open {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.orbit-file-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.orbit-btn-icon {
+  background: none;
+  border: 1px solid var(--orbit-border);
+  color: var(--orbit-muted);
+  cursor: pointer;
+  font-size: 13px;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.orbit-btn-icon:hover {
+  color: var(--orbit-text);
+  border-color: var(--orbit-text);
+}
+
+.orbit-btn-danger:hover {
+  color: #f85149;
+  border-color: #f85149;
+}
+
+.orbit-btn-save {
+  color: #3fb950;
+}
+
+.orbit-btn-save:hover {
+  border-color: #3fb950;
+}
+
+.orbit-move-select {
+  font-size: 11px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.15rem 0.25rem;
+  max-width: 80px;
+  cursor: pointer;
+}
+
+.orbit-rename-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-accent);
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  font-family: inherit;
+}
+
+.orbit-placeholder {
+  line-height: 1.5;
+}
+
+.orbit-muted {
+  color: var(--orbit-muted);
+  font-size: 13px;
+}
+
+.orbit-page-card {
+  border: 1px solid var(--orbit-border);
+  border-radius: 8px;
+  padding: 0.85rem 0.9rem;
+  margin-bottom: 0.75rem;
+  background: var(--orbit-panel);
+}
+
+.orbit-page-card--active {
+  border-color: var(--orbit-accent);
+}
+
+.orbit-page-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.orbit-page-title {
+  background: none;
+  border: none;
+  color: var(--orbit-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.orbit-page-title:hover {
+  color: var(--orbit-accent);
+}
+
+.orbit-page-status {
+  font-size: 11px;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  margin-left: auto;
+}
+
+.orbit-page-status--pub {
+  background: #23863620;
+  color: #3fb950;
+}
+
+.orbit-page-status--draft {
+  background: #8b949e20;
+  color: var(--orbit-muted);
+}
+
+.orbit-page-status--dirty {
+  background: #d2992020;
+  color: #d29922;
+}
+
+.orbit-page-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.orbit-btn-sm {
+  font-size: 12px;
+  padding: 0.3rem 0.65rem;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  background: var(--orbit-accent);
+  color: #0d1117;
+}
+
+.orbit-btn-sm:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.orbit-btn-sm:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.orbit-btn-sm.orbit-btn-secondary {
+  background: transparent;
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+}
+
+.orbit-page-links {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 12px;
+}
+
+.orbit-page-open {
+  color: var(--orbit-accent);
+  text-decoration: none;
+}
+
+.orbit-page-open:hover {
+  text-decoration: underline;
+}
+
+.orbit-page-url-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  font-size: 12px;
+  color: var(--orbit-muted);
+}
+
+.orbit-page-url-row label {
+  flex-shrink: 0;
+}
+
+.orbit-page-url-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  font-family: inherit;
+}
+
+.orbit-page-url-input:read-only {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.orbit-page-meta-section {
+  margin-bottom: 0.4rem;
+}
+
+.orbit-meta-label {
+  display: block;
+  font-size: 11px;
+  color: var(--orbit-muted);
+  margin-bottom: 0.15rem;
+  margin-top: 0.3rem;
+}
+
+.orbit-meta-label:first-child {
+  margin-top: 0;
+}
+
+.orbit-meta-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.25rem 0.35rem;
+  font-family: inherit;
+}
+
+.orbit-meta-textarea {
+  min-height: 2.5rem;
+  resize: vertical;
+}
+
+.orbit-page-details {
+  margin-top: 0.35rem;
+  border-top: 1px solid var(--orbit-border);
+}
+
+.orbit-page-details-summary {
+  font-size: 12px;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.35rem 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.orbit-page-details-summary::-webkit-details-marker {
+  display: none;
+}
+
+.orbit-page-details-summary::before {
+  content: '▸';
+  flex-shrink: 0;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+
+.orbit-page-details[open] > .orbit-page-details-summary::before {
+  transform: rotate(90deg);
+}
+
+.orbit-page-details-body {
+  padding-bottom: 0.35rem;
+}
+
+.orbit-page-resources-section {
+  margin-top: 0.25rem;
+}
+
+.orbit-delete-page-section {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--orbit-border);
+}
+
+.orbit-delete-page-btn {
+  background: transparent;
+  color: #f85149;
+  border: 1px solid #f85149;
+  opacity: 0.7;
+}
+
+.orbit-delete-page-btn:hover {
+  opacity: 1;
+}
+
+.orbit-res-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0.35rem;
+}
+
+.orbit-res-row {
+  font-size: 12px;
+  color: var(--orbit-text);
+  padding: 0.15rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.orbit-res-html {
+  color: var(--orbit-muted);
+}
+
+.orbit-res-link {
+  background: none;
+  border: none;
+  color: var(--orbit-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 0;
+  text-align: left;
+}
+
+.orbit-res-link:hover {
+  text-decoration: underline;
+}
+
+.orbit-res-html .orbit-res-link {
+  color: var(--orbit-muted);
+}
+
+.orbit-res-html .orbit-res-link:hover {
+  color: var(--orbit-accent);
+}
+
+.orbit-res-html-change {
+  background: none;
+  border: none;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  padding: 0 0.25rem;
+  text-decoration: underline;
+}
+
+.orbit-res-html-change:hover {
+  color: var(--orbit-accent);
+}
+
+.orbit-res-html-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.1rem 0.25rem;
+}
+
+.orbit-hidden {
+  display: none !important;
+}
+
+.orbit-res-remove {
+  background: none;
+  border: none;
+  color: #f85149;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 0.15rem;
+  line-height: 1;
+}
+
+.orbit-res-add {
+  font-size: 12px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+.orbit-new-page-btn {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+/* ── Pages split layout ──────────────────────────────────────────────────── */
+.orbit-left-body:has(.orbit-pages-split) {
+  overflow: hidden;
+  padding: 0;
+}
+
+.orbit-pages-split {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Top: page list */
+.orbit-pages-list-wrap {
+  flex: 0 0 auto;
+  max-height: 45%;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 2px solid var(--orbit-accent);
+  background: var(--orbit-panel);
+}
+
+.orbit-pages-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.35rem 0.5rem 0;
+}
+
+.orbit-pages-list-footer {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem 0.6rem;
+  border-top: 1px solid var(--orbit-border);
+}
+
+.orbit-page-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-bottom: 0.15rem;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.orbit-page-item:hover {
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.orbit-page-item--active {
+  background: rgba(88, 166, 255, 0.14);
+}
+
+.orbit-page-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--orbit-text);
+}
+
+/* Bottom: detail panel */
+.orbit-pages-detail-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.orbit-detail-empty {
+  padding: 1rem 0.9rem;
+}
+
+.orbit-detail-inner {
+  padding: 0.9rem 0.9rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.orbit-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.orbit-detail-page-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--orbit-text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-detail-page-name-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.orbit-detail-page-name-btn:hover {
+  color: var(--orbit-accent);
+}
+
+.orbit-detail-links {
+  display: flex;
+  gap: 0.6rem;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.orbit-detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.orbit-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--orbit-border);
+}
+
+.orbit-detail-section:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Description textarea — no max-height, grows freely */
+.orbit-detail-textarea {
+  min-height: 7rem;
+  max-height: none;
+  resize: vertical;
+}
+
+.orbit-detail-danger {
+  margin-top: 1rem;
+  padding: 1rem 0 0.5rem;
+  border-top: 1px dashed rgba(248, 81, 73, 0.3);
+}
+
+.orbit-link {
+  background: none;
+  border: none;
+  color: var(--orbit-accent);
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  font: inherit;
+}
+
+
+.orbit-files li {
+  margin-bottom: 0.35rem;
+}
+
+.orbit-upload-section {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--orbit-border);
+}
+
+.orbit-upload-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem 1rem;
+  border: 2px dashed var(--orbit-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.orbit-upload-label:hover,
+.orbit-upload-dragover {
+  border-color: var(--orbit-accent);
+  background: rgba(88, 166, 255, 0.06);
+}
+
+.orbit-upload-input {
+  display: none;
+}
+
+.orbit-upload-text {
+  font-size: 0.82rem;
+  color: var(--orbit-muted);
+}
+
+.orbit-upload-status {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--orbit-muted);
+}
+
+.orbit-legacy-section {
+  margin-top: 1.2rem;
+  padding-top: 0.8rem;
+  border-top: 1px dashed var(--orbit-border);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.orbit-perm-banner {
+  background: rgba(248, 81, 73, 0.08);
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  color: #f85149;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  margin-bottom: 0.8rem;
+  font-size: 12px;
+  line-height: 1.45;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.orbit-perm-banner strong {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.2rem;
+}
+
+/* Session-expired banner sits above the toolbar, spans the full left panel */
+.orbit-session-expired-banner {
+  border-radius: 0;
+  margin-bottom: 0;
+  background: rgba(210, 153, 34, 0.12);
+  border-color: rgba(210, 153, 34, 0.5);
+  color: #d29922;
+  flex-shrink: 0;
+}
+.orbit-session-expired-banner strong {
+  margin-bottom: 0;
+  width: auto;
+  display: inline;
+}
+
+/* No-preview notice shown when allow_iframe_preview isn't granted */
+.orbit-no-preview-notice {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  background: var(--orbit-bg);
+}
+
+.orbit-no-preview-inner {
+  max-width: 340px;
+  text-align: center;
+  color: var(--orbit-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.orbit-no-preview-inner p {
+  margin: 0 0 0.6rem;
+}
+
+.orbit-no-preview-inner strong {
+  color: var(--orbit-text);
+}
+
+.orbit-no-preview-inner code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  background: var(--orbit-panel);
+  border: 1px solid var(--orbit-border);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+}
+
+.orbit-no-preview-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.orbit-no-preview-actions .orbit-btn,
+.orbit-no-preview-actions .orbit-btn-sm {
+  text-decoration: none;
+}
+
+/* ── File publish status indicators ──────────── */
+.orbit-file-pub-badge {
+  font-size: 10px;
+  color: #3fb950;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.orbit-tree-pub-dot {
+  font-size: 8px;
+  color: #3fb950;
+  margin-left: 0.2rem;
+  vertical-align: middle;
+  opacity: 0.85;
+}
+
+.orbit-btn-unpub {
+  color: #d29922;
+  border-color: #d29922;
+  font-size: 11px;
+}
+
+.orbit-btn-unpub:hover {
+  color: #f0a020;
+  border-color: #f0a020;
+}
+
+@media (max-width: 800px) {
+  .orbit-body {
+    flex-direction: column;
+  }
+  .orbit-splitter {
+    display: none;
+  }
+  .orbit-left {
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    max-width: none !important;
+    border-right: none;
+    border-bottom: 1px solid var(--orbit-border);
+  }
+}

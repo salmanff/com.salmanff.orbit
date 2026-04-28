@@ -1,0 +1,246 @@
+/* ── Globe shared base ── */
+.globes-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4rem;
+}
+
+/* ── Full Globe ── */
+.globe {
+  position: relative;
+  width: 160px;
+  height: 160px;
+}
+
+.globe::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%,
+    rgba(0,200,255,0.18) 0%,
+    rgba(120,0,255,0.10) 60%,
+    transparent 75%);
+  animation: glowPulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes glowPulse {
+  from { opacity: 0.6; transform: scale(0.97); }
+  to   { opacity: 1;   transform: scale(1.03); }
+}
+
+.sphere {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #ff3cac, #784ba0, #2b86c5,
+    #00d4ff, #00ffa3, #ffe000,
+    #ff3cac
+  );
+  animation: spinSphere 6s linear infinite;
+  overflow: hidden;
+}
+
+.sphere::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%,
+    rgba(255,255,255,0.45) 0%,
+    rgba(255,255,255,0.05) 45%,
+    transparent 65%);
+  z-index: 10;
+}
+
+.sphere::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 65% 68%,
+    rgba(0,0,0,0.55) 0%,
+    transparent 60%);
+  z-index: 10;
+}
+
+@keyframes spinSphere {
+  from { filter: hue-rotate(0deg);   transform: rotate(0deg); }
+  to   { filter: hue-rotate(360deg); transform: rotate(360deg); }
+}
+
+/* ── Latitude rings (full globe only) ── */
+.ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.55);
+  transform-origin: center center;
+  box-shadow: 0 0 6px rgba(255,255,255,0.3);
+}
+
+.ring-equator {
+  width: 160px;
+  height: 36px;
+  margin-left: -80px;
+  margin-top: -18px;
+  animation: spinRingH 3s linear infinite;
+}
+.ring-tilt1 {
+  width: 160px;
+  height: 36px;
+  margin-left: -80px;
+  margin-top: -18px;
+  animation: spinRingH 3s linear infinite;
+  transform: rotate(60deg) rotateX(75deg);
+}
+.ring-tilt2 {
+  width: 160px;
+  height: 36px;
+  margin-left: -80px;
+  margin-top: -18px;
+  animation: spinRingH 3s linear infinite reverse;
+  transform: rotate(-60deg) rotateX(75deg);
+}
+.ring-vertical {
+  width: 36px;
+  height: 160px;
+  margin-left: -18px;
+  margin-top: -80px;
+  animation: spinRingV 4s linear infinite;
+}
+.ring-vertical2 {
+  width: 36px;
+  height: 160px;
+  margin-left: -18px;
+  margin-top: -80px;
+  animation: spinRingV 4s linear infinite reverse;
+  transform: rotateY(60deg);
+}
+
+@keyframes spinRingH {
+  from { transform: rotateX(75deg) rotateZ(0deg); }
+  to   { transform: rotateX(75deg) rotateZ(360deg); }
+}
+@keyframes spinRingV {
+  from { transform: rotateY(80deg) rotateZ(0deg); }
+  to   { transform: rotateY(80deg) rotateZ(360deg); }
+}
+
+/* ── Orbit rings ── */
+.orbit-ring {
+  position: absolute;
+  inset: -18px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color:   #ff3cac;
+  border-right-color: #00d4ff;
+  border-bottom-color:#ffe000;
+  border-left-color:  #00ffa3;
+  animation: spinOrbit 2s linear infinite;
+}
+
+.orbit-ring-2 {
+  position: absolute;
+  inset: -28px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255,255,255,0.2);
+  border-top-color:   rgba(120,0,255,0.6);
+  border-bottom-color:rgba(0,200,255,0.6);
+  animation: spinOrbit 5s linear infinite reverse;
+}
+
+@keyframes spinOrbit {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Orbit dot ── */
+.orbit-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 50%;
+  top: -23px;
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 0 8px #fff, 0 0 16px #00d4ff;
+}
+
+/* ══════════════════════════════════════
+   ── Logo Globe (small, simplified) ──
+   ══════════════════════════════════════ */
+.globe-logo {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.globe-logo::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%,
+    rgba(0,200,255,0.18) 0%,
+    rgba(120,0,255,0.10) 60%,
+    transparent 75%);
+  animation: glowPulse 3s ease-in-out infinite alternate;
+}
+
+.globe-logo .sphere {
+  /* inherits base .sphere styles; size is set by the parent */
+}
+
+.globe-logo .orbit-ring {
+  inset: -10px;
+  border-width: 2px;
+}
+
+.globe-logo .orbit-dot {
+  width: 6px;
+  height: 6px;
+  top: -12px;
+}
+
+/* ══════════════════════════════════════
+   ── Toolbar Globe (tiny, for nav bar) ──
+   ══════════════════════════════════════ */
+.globe-toolbar {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.globe-toolbar::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%,
+    rgba(0,200,255,0.18) 0%,
+    rgba(120,0,255,0.10) 60%,
+    transparent 75%);
+  animation: glowPulse 3s ease-in-out infinite alternate;
+}
+
+.globe-toolbar .sphere {
+  animation-duration: 8s;
+}
+
+.globe-toolbar .orbit-ring {
+  inset: -4px;
+  border-width: 1.5px;
+}
+
+.globe-toolbar .orbit-dot {
+  width: 3px;
+  height: 3px;
+  top: -5px;
+  box-shadow: 0 0 4px #fff, 0 0 8px #00d4ff;
+}
