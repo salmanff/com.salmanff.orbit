@@ -252,7 +252,8 @@ function publicIdFromShareResponse(res, fullPath) {
 async function sharePublicFileForPublish(fullPath) {
   const res = await freezr.perms.shareFilePublicly(fullPath, {
     name: PUBLISH_PERM,
-    grant: true
+    grant: true,
+    doNotList: true
   })
   return publicIdFromShareResponse(res, fullPath)
 }

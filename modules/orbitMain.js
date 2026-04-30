@@ -1293,7 +1293,8 @@ async function publishImageFile(fullPath) {
     await freezr.upload(file, { targetFolder: folder, overwrite: true })
     await freezr.perms.shareFilePublicly(publicFullPath, {
       name: 'publish_site',
-      grant: true
+      grant: true,
+      doNotList: true
     })
     window.alert('Image published.')
   } catch (e) {
