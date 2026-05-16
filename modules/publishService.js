@@ -6,6 +6,7 @@
  * (see publicPageController — fileStructure.css/js entries carry `publicid`).
  */
 
+
 const PUBLISH_PERM = 'publish_site'
 
 function normalizeQueryRows(rows) {
@@ -225,13 +226,13 @@ async function syncDraftToPublicExplicit(projectName, relativePaths, htmlEntryRe
   }
 }
 
-function canonicalPublicIdForFilePath(fullPath) {
+export function canonicalPublicIdForFilePath(fullPath) {
   const uid = freezrMeta.userId
   const appFiles = freezrMeta.appName + '.files'
   return '@' + uid + '/' + appFiles + '/' + fullPath
 }
 
-function browseUrlToPublicId(publicId) {
+export function browseUrlToPublicId(publicId) {
   if (!publicId) return null
   const base = window.location.origin.replace(/\/$/, '')
   if (publicId.startsWith('http')) return publicId

@@ -4,7 +4,9 @@ import {
   unpublishProjectSite,
   unpublishSingleFile,
   isFilePublished,
-  defaultPublicIdForPage
+  defaultPublicIdForPage,
+  canonicalPublicIdForFilePath,
+  browseUrlToPublicId
 } from './publishService.js'
 import { sendOrbitChatMessage } from './orbitChat.js'
 import { extractStreamDisplay } from './parseFreezrResponse.js'
@@ -92,12 +94,10 @@ const state = {
 }
 
 const starterIndexHtml = `<header class="orbit-header">
-  <h1>Your site</h1>
-  <p>Edit this in Orbit — draft is not public until you publish.</p>
-</header>
-<main>
-  <p>Hello from Orbit.</p>
-</main>
+  <h1>Placeholder web page</h1>
+  <main>
+    <p>Edit or replace this page in Orbit, or ask your LLM to replace it with exactly what you would like.. then publish it.</p>
+  </main>
 `
 
 const starterCss = `/* Shared styles — assigned to pages in the Pages tab */
@@ -550,7 +550,7 @@ function confirmDiscardChanges(msg = 'You have unsaved changes. Discard them?') 
   state.editorText = ''
   state.loadedEditorPath = null
   const saveBtn = document.getElementById('orbit-save')
-  if (saveBtn) saveBtn.textContent = 'Save'
+  if (saveBtn) saveBtn.classList.add('orbit-save-clean')
   return true
 }
 
@@ -564,7 +564,7 @@ function setDirty(isDirty) {
   if (state.dirty === next) return
   state.dirty = next
   const saveBtn = document.getElementById('orbit-save')
-  if (saveBtn) saveBtn.textContent = next ? 'Save *' : 'Save'
+  if (saveBtn) saveBtn.classList.toggle('orbit-save-clean', !next)
   if (state.leftTab === 'pages') {
     refreshPagesPanel().catch((e) => console.warn('Orbit: pages refresh failed', e))
   }
@@ -851,7 +851,7 @@ async function openFile(relPath, { force = false } = {}) {
   if (viewSnapshot) restoreEditorViewState(viewSnapshot)
 
   const saveBtn = document.getElementById('orbit-save')
-  if (saveBtn) saveBtn.textContent = state.dirty ? 'Save *' : 'Save'
+  if (saveBtn) saveBtn.classList.toggle('orbit-save-clean', !state.dirty)
 }
 
 function updateLockOverlay() {
@@ -1159,6 +1159,27 @@ function isImagePath(p) {
   return /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i.test(p)
 }
 
+// Files the code editor can usefully open. Anything else (images, PDFs,
+// fonts, audio/video, archives, …) is treated as an asset and routed to
+// the asset preview pane so the user can grab its URL.
+function isTextEditablePath(p) {
+  return /\.(html?|css|js|mjs|cjs|jsx|ts|tsx|json|md|markdown|txt|xml|yml|yaml|csv|log|sh|py|rb|go|rs|java|c|h|cpp|sql|env|gitignore|map)$/i.test(p) || !/\.[^./\\]+$/.test(p)
+}
+
+function assetUrlsForDraftPath(fullDraftPath) {
+  if (!fullDraftPath) return { privateUrl: '', publicUrl: '', isPublished: false }
+  const rawPrivate = freezr.getFileUrl(fullDraftPath) || ''
+  const privateUrl = rawPrivate.startsWith('http') ? rawPrivate : (window.location.origin + rawPrivate)
+
+  const isPublished = !!state.publishedFiles[fullDraftPath]
+  let publicUrl = ''
+  if (isPublished) {
+    const publicFullPath = fullDraftPath.replace('/draft/', '/public/')
+    publicUrl = browseUrlToPublicId(canonicalPublicIdForFilePath(publicFullPath)) || ''
+  }
+  return { privateUrl, publicUrl, isPublished }
+}
+
 function buildFileTree(fileList, basePath) {
   const root = { name: 'Project Folder', children: {}, files: [] }
   for (const fullPath of fileList) {
@@ -1296,7 +1317,8 @@ async function publishImageFile(fullPath) {
       grant: true,
       doNotList: true
     })
-    window.alert('Image published.')
+    state.publishedFiles[fullPath] = true
+    await render()
   } catch (e) {
     console.error(e)
     window.alert(e.message || 'Publish failed')
@@ -1324,7 +1346,8 @@ async function unpublishImageFile(fullPath) {
         forcePublicIdCleanup: true
       })
     }
-    window.alert('Image unpublished.')
+    state.publishedFiles[fullPath] = false
+    await render()
   } catch (e) {
     console.error(e)
     window.alert(e.message || 'Unpublish failed')
@@ -1334,6 +1357,18 @@ async function unpublishImageFile(fullPath) {
 function leftPanelStyleAttr() {
   const w = state.leftPanelWidth
   return `style="flex:0 0 ${w}px;width:${w}px;min-width:200px;max-width:560px"`
+}
+
+// On narrow screens (≤ 800px) the panels stack vertically — the right panel
+// sits below the fold, so after the user clicks something that loads new
+// content into it (Preview, page name, file name, resource link) we scroll
+// the right panel into view. CSS already gives .orbit-right min-height: 90vh
+// at this breakpoint so scrollIntoView has somewhere to scroll to.
+function scrollToRightPanelIfNeeded () {
+  if (window.innerWidth > 800) return
+  requestAnimationFrame(() => {
+    document.querySelector('.orbit-right')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
 }
 
 async function render() {
@@ -1398,13 +1433,27 @@ async function render() {
       <section class="orbit-right">
         ${state.rightMode === 'editor' ? `<div class="orbit-right-toolbar">
           <span class="orbit-meta">${state.currentFilePath ? state.currentFilePath.split('/').pop() : ''}</span>
-          <button type="button" id="orbit-save" class="orbit-btn">${state.dirty ? 'Save *' : 'Save'}</button>
+          <button type="button" id="orbit-save" class="orbit-btn${state.dirty ? '' : ' orbit-save-clean'}">Save</button>
         </div>` : ''}
-        ${state.rightMode === 'image' ? `<div class="orbit-right-toolbar">
-          <span class="orbit-meta">${state.currentFilePath ? state.currentFilePath.split('/').pop() : ''}</span>
-          <button type="button" id="orbit-img-publish" class="orbit-btn orbit-btn-sm" ${canPublish ? '' : 'disabled'}>Publish</button>
-          <button type="button" id="orbit-img-unpublish" class="orbit-btn orbit-btn-sm orbit-btn-secondary" ${canPublish ? '' : 'disabled'}>Unpublish</button>
-        </div>` : ''}
+        ${state.rightMode === 'image' ? (() => {
+          const fp = state.currentFilePath
+          const { privateUrl, publicUrl, isPublished } = assetUrlsForDraftPath(fp)
+          return `<div class="orbit-right-toolbar">
+            <span class="orbit-meta">${fp ? fp.split('/').pop() : ''}</span>
+            <button type="button" id="orbit-img-publish" class="orbit-btn orbit-btn-sm" ${canPublish ? '' : 'disabled'}>Publish</button>
+            <button type="button" id="orbit-img-unpublish" class="orbit-btn orbit-btn-sm orbit-btn-secondary" ${canPublish ? '' : 'disabled'}>Unpublish</button>
+          </div>
+          <div class="orbit-asset-urls">
+            <div class="orbit-asset-url-row">
+              <button type="button" class="orbit-btn orbit-btn-sm" data-copy-url="private">Copy private URL</button>
+              <input type="text" class="orbit-asset-url-input" data-asset-url="private" readonly value="${escapeHtml(privateUrl)}" />
+            </div>
+            ${isPublished ? `<div class="orbit-asset-url-row">
+              <button type="button" class="orbit-btn orbit-btn-sm" data-copy-url="public">Copy public URL</button>
+              <input type="text" class="orbit-asset-url-input" data-asset-url="public" readonly value="${escapeHtml(publicUrl)}" />
+            </div>` : `<div class="orbit-asset-url-hint">Publish to get a public URL.</div>`}
+          </div>`
+        })() : ''}
         <div class="orbit-right-body">
           <div id="orbit-panel-editor" class="orbit-panel ${state.rightMode === 'editor' ? '' : 'hidden'}">
             <div id="orbit-editor-mount" class="orbit-editor-mount"></div>
@@ -1465,12 +1514,40 @@ async function render() {
   if (state.rightMode === 'image' && state.currentFilePath) {
     const imgEl = document.getElementById('orbit-image-preview')
     if (imgEl) {
-      const url = freezr.getFileUrl(state.currentFilePath)
+      const fp = state.currentFilePath
+      const url = freezr.getFileUrl(fp)
       const fullUrl = url.startsWith('http') ? url : (window.location.origin + url)
-      imgEl.innerHTML = `<img src="${fullUrl}" alt="${escapeHtml(state.currentFilePath.split('/').pop())}" class="orbit-image-preview-img" />`
+      const name = fp.split('/').pop()
+      if (isImagePath(fp)) {
+        imgEl.innerHTML = `<img src="${fullUrl}" alt="${escapeHtml(name)}" class="orbit-image-preview-img" />`
+      } else {
+        imgEl.innerHTML = `<div class="orbit-asset-placeholder">
+          <div class="orbit-asset-placeholder-icon">&#128196;</div>
+          <div class="orbit-asset-placeholder-name">${escapeHtml(name)}</div>
+          <a class="orbit-asset-placeholder-link" href="${escapeHtml(fullUrl)}" target="_blank" rel="noopener">Open in new tab ↗</a>
+        </div>`
+      }
     }
     document.getElementById('orbit-img-publish')?.addEventListener('click', () => publishImageFile(state.currentFilePath))
     document.getElementById('orbit-img-unpublish')?.addEventListener('click', () => unpublishImageFile(state.currentFilePath))
+
+    document.querySelectorAll('[data-copy-url]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const which = btn.getAttribute('data-copy-url')
+        const input = document.querySelector(`[data-asset-url="${which}"]`)
+        const value = input?.value || ''
+        if (!value) return
+        const originalLabel = btn.textContent
+        try {
+          await navigator.clipboard.writeText(value)
+        } catch (_) {
+          input?.select()
+          try { document.execCommand('copy') } catch (_) {}
+        }
+        btn.textContent = 'Copied!'
+        setTimeout(() => { btn.textContent = originalLabel }, 1200)
+      })
+    })
   }
 }
 
@@ -1637,7 +1714,7 @@ async function renderLeftPanel(opts = {}) {
         <div class="orbit-chat-log" id="orbit-chat-log">
           ${threadsHtml}
         </div>
-        ${!canLlm ? '<p class="orbit-muted orbit-chat-perm">Grant <strong>use_llm</strong> in app settings to enable chat.</p>' : ''}
+        ${!canLlm ? '<p class="orbit-muted orbit-chat-perm" style="color:#f85149"><a href="/account/app/settings/com.salmanff.orbit" target="_blank" rel="noopener" style="color:#f85149">Grant <strong>use_llm</strong> in app settings</a> to enable chat.</p>' : ''}
         <div class="orbit-chat-bottom">
           <textarea id="orbit-chat-input" class="orbit-chat-input" rows="2" placeholder="Start a new conversation…" ${disChat}></textarea>
           <button type="button" id="orbit-chat-new" class="orbit-btn" ${disChat}>New Chat</button>
@@ -1700,9 +1777,11 @@ async function renderLeftPanel(opts = {}) {
 
     const permBanner = !canPublish
       ? `<div class="orbit-perm-banner" role="alert">
-          <strong>publish_site permission not granted.</strong>
-          Publish / Re-publish / Unpublish buttons are disabled until it's granted in the app menu &gt; Permissions.
-          <button type="button" class="orbit-btn-sm orbit-btn-secondary" id="orbit-perm-recheck">Re-check</button>
+          You need to grant the <strong style="display:inline;width:auto;margin:0">publish_site</strong> permission to be able to publish. Go to the app settings to grant the permission.
+          <div style="display:flex;gap:0.5rem;margin-top:0.4rem;flex-wrap:wrap">
+            <button type="button" class="orbit-btn-sm orbit-btn-secondary" id="orbit-perm-recheck">Re-check</button>
+            <a class="orbit-btn-sm orbit-btn-secondary" href="/account/app/settings/com.salmanff.orbit" target="_blank" rel="noopener">App Settings ↗</a>
+          </div>
         </div>`
       : ''
 
@@ -1865,6 +1944,7 @@ async function renderLeftPanel(opts = {}) {
         if (pg) state.currentFilePath = `${draftBasePath()}/${pg.html_file}`
         state.rightMode = 'preview'
         await render()
+        scrollToRightPanelIfNeeded()
       }
       item.addEventListener('click', activate)
       item.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() } })
@@ -1880,6 +1960,7 @@ async function renderLeftPanel(opts = {}) {
         if (pg) state.currentFilePath = `${draftBasePath()}/${pg.html_file}`
         state.rightMode = 'preview'
         await render()
+        scrollToRightPanelIfNeeded()
       })
     })
 
@@ -1926,6 +2007,7 @@ async function renderLeftPanel(opts = {}) {
         state.rightMode = 'editor'
         state.currentFilePath = `${draftBasePath()}/${relPath}`
         await render()
+        scrollToRightPanelIfNeeded()
       })
     })
     body.querySelectorAll('.orbit-res-remove').forEach((btn) => {
@@ -1989,19 +2071,27 @@ async function renderLeftPanel(opts = {}) {
           const filePath = val.slice(9)
           const type = filePath.endsWith('.css') ? 'css' : 'js'
           await addResourceToPage(idx, filePath, type)
-        } else if (val === '__new_css__' || val === '__new_shared_css__') {
-          const name = window.prompt('CSS filename (e.g. styles.css):')
-          if (!name || !name.endsWith('.css')) return
-          const path = val === '__new_shared_css__' ? `shared/${name}` : name
-          await uploadText(`${draftBasePath()}/${path}`, `/* ${name} */\n`, 'text/css')
-          await addResourceToPage(idx, path, 'css')
-          await refreshFileList()
-        } else if (val === '__new_js__' || val === '__new_shared_js__') {
-          const name = window.prompt('JS filename (e.g. app.js):')
-          if (!name || !name.endsWith('.js')) return
-          const path = val === '__new_shared_js__' ? `shared/${name}` : name
-          await uploadText(`${draftBasePath()}/${path}`, `// ${name}\n`, 'text/javascript')
-          await addResourceToPage(idx, path, 'js')
+        } else if (
+          val === '__new_css__' || val === '__new_shared_css__' ||
+          val === '__new_js__' || val === '__new_shared_js__'
+        ) {
+          const picked = (val === '__new_css__' || val === '__new_shared_css__') ? 'css' : 'js'
+          const shared = (val === '__new_shared_css__' || val === '__new_shared_js__')
+          const raw = window.prompt(picked === 'css' ? 'CSS filename (e.g. styles.css):' : 'JS filename (e.g. app.js):')
+          const trimmed = raw && raw.trim()
+          if (!trimmed) return
+          // If the user typed an explicit .css or .js extension, honour it
+          // (they may have picked "New JS" but typed "styles.css" — let it
+          // become a CSS file rather than producing "styles.css.js").
+          const hasCss = trimmed.toLowerCase().endsWith('.css')
+          const hasJs = trimmed.toLowerCase().endsWith('.js')
+          const type = hasCss ? 'css' : hasJs ? 'js' : picked
+          const name = (hasCss || hasJs) ? trimmed : `${trimmed}.${type}`
+          const path = shared ? `shared/${name}` : name
+          const stub = type === 'css' ? `/* ${name} */\n` : `// ${name}\n`
+          const mime = type === 'css' ? 'text/css' : 'text/javascript'
+          await uploadText(`${draftBasePath()}/${path}`, stub, mime)
+          await addResourceToPage(idx, path, type)
           await refreshFileList()
         }
       })
@@ -2188,8 +2278,9 @@ async function renderLeftPanel(opts = {}) {
           const fp = btn.getAttribute('data-file')
           if (!confirmDiscardChanges()) return
           state.currentFilePath = fp
-          state.rightMode = isImagePath(fp) ? 'image' : 'editor'
+          state.rightMode = isTextEditablePath(fp) ? 'editor' : 'image'
           await render()
+          scrollToRightPanelIfNeeded()
         })
       })
 
@@ -2354,8 +2445,9 @@ async function renderLeftPanel(opts = {}) {
           const fp = btn.getAttribute('data-file')
           if (!confirmDiscardChanges()) return
           state.currentFilePath = fp
-          state.rightMode = isImagePath(fp) ? 'image' : 'editor'
+          state.rightMode = isTextEditablePath(fp) ? 'editor' : 'image'
           await render()
+          scrollToRightPanelIfNeeded()
         })
       })
     }
@@ -2910,6 +3002,20 @@ function bindBeforeUnloadGuard() {
   })
 }
 
+// Cmd/Ctrl+S → save the currently-open editor file. Always preventDefault so
+// the browser's "Save Page As…" dialog never fires while Orbit is loaded;
+// saveCurrentFile() itself is a no-op when there's nothing to save.
+function bindSaveShortcut() {
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 's' && e.key !== 'S') return
+    if (!(e.metaKey || e.ctrlKey)) return
+    if (e.altKey) return
+    e.preventDefault()
+    if (state.rightMode !== 'editor') return
+    saveCurrentFile().catch((err) => console.error('Orbit: Cmd/Ctrl+S save failed', err))
+  })
+}
+
 /**
  * Attach a debug handle on window so you can inspect or recover from a
  * stuck state from the browser console:
@@ -2956,6 +3062,7 @@ export async function initOrbit() {
   }
 
   bindBeforeUnloadGuard()
+  bindSaveShortcut()
   exposeDebugHandle()
 
   // render() must always run — it is the only thing that mounts the UI.

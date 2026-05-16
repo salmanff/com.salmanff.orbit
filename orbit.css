@@ -79,6 +79,15 @@
   border: 1px solid var(--orbit-border);
 }
 
+.orbit-btn.orbit-save-clean {
+  background: var(--orbit-border);
+  color: var(--orbit-muted);
+}
+
+.orbit-btn.orbit-save-clean:hover {
+  filter: none;
+}
+
 .orbit-meta {
   font-size: 12px;
   color: var(--orbit-muted);
@@ -683,6 +692,73 @@ body.orbit-resizing {
   object-fit: contain;
   border-radius: 4px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+
+.orbit-asset-urls {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--orbit-border);
+  background: var(--orbit-panel);
+}
+
+.orbit-asset-url-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.orbit-asset-url-row .orbit-btn-sm {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.orbit-asset-url-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.orbit-asset-url-hint {
+  font-size: 11px;
+  color: var(--orbit-muted);
+  padding-left: 0.25rem;
+}
+
+.orbit-asset-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--orbit-muted);
+}
+
+.orbit-asset-placeholder-icon {
+  font-size: 48px;
+}
+
+.orbit-asset-placeholder-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: var(--orbit-text);
+}
+
+.orbit-asset-placeholder-link {
+  font-size: 12px;
+  color: var(--orbit-accent);
+  text-decoration: none;
+}
+
+.orbit-asset-placeholder-link:hover {
+  text-decoration: underline;
 }
 
 /* ── File tree ──────────────────────────────── */
@@ -1507,5 +1583,17 @@ body.orbit-resizing {
     max-width: none !important;
     border-right: none;
     border-bottom: 1px solid var(--orbit-border);
+  }
+  /* Give the right panel a guaranteed height so the document grows past
+     the viewport and becomes scrollable — without this, scrollIntoView
+     has nowhere to scroll to. */
+  .orbit-right {
+    min-height: 90vh;
+    flex: 0 0 auto;
+  }
+  .orbit-preview-frame,
+  .orbit-editor-mount,
+  .orbit-image-preview {
+    min-height: 80vh;
   }
 }
