@@ -7,17 +7,14 @@
  */
 
 
+import { fetchUserFile } from './fileFetch.js'
+
 const PUBLISH_PERM = 'publish_site'
 
 function normalizeQueryRows(rows) {
   if (Array.isArray(rows)) return rows
   if (rows && Array.isArray(rows.data)) return rows.data
   return []
-}
-
-function fepsUrl(relPath) {
-  const path = freezr.getFileUrl(relPath)
-  return path.startsWith('http') ? path : window.location.origin + path
 }
 
 function isProbablyTextPath(p) {
@@ -79,33 +76,70 @@ async function uploadToPath(fullPath, text, blob, mimeOverride) {
 }
 
 /**
- * Extract all local image src values from an HTML string.
- * Returns an array of unique relative paths (skips data: URIs, absolute URLs, and empty strings).
+ * Normalize an <img> src found in draft HTML to a path relative to the draft
+ * root, or null when it isn't a draft file (data:/blob:/external URLs, and
+ * other absolute paths such as already-public URLs).
+ * Handles plain relative paths, root-relative /feps/userfiles/... paths and
+ * same-origin absolute userfiles URLs. Any query string — including a
+ * ?fileToken= inserted for in-app display — is dropped, so tokens never
+ * survive into the public copy.
  */
-function extractLocalImgSrcs(html) {
+function draftRelFromImgSrc(src, projectName) {
+  let s = (src || '').trim()
+  if (!s || s.startsWith('data:') || s.startsWith('blob:') || s.startsWith('//')) return null
+  if (/^https?:\/\//i.test(s)) {
+    if (!s.startsWith(window.location.origin + '/')) return null
+    try { s = new URL(s).pathname } catch (_) { return null }
+  }
+  s = s.split('#')[0].split('?')[0]
+  const userfilesPrefix = `/feps/userfiles/${freezrMeta.appName}/${freezrMeta.userId}/`
+  if (s.startsWith(userfilesPrefix)) s = s.slice(userfilesPrefix.length)
+  // Other server routes (another app's userfiles, public @-URLs, APIs) are not draft files.
+  else if (s.startsWith('/feps/') || s.startsWith('/ceps/') || s.startsWith('/@')) return null
+  s = s.replace(/^\/+/, '')
+  const draftPrefix = `projects/${projectName}/draft/`
+  if (s.startsWith(draftPrefix)) return s.slice(draftPrefix.length)
+  return s
+}
+
+/** Drop any fileToken=… parameter from a URL, preserving other query params. */
+function stripFileToken(src) {
+  const qIdx = src.indexOf('?')
+  if (qIdx < 0 || src.indexOf('fileToken=') < 0) return src
+  const path = src.slice(0, qIdx)
+  const kept = src.slice(qIdx + 1).split('&').filter((p) => p && !p.startsWith('fileToken='))
+  return kept.length ? path + '?' + kept.join('&') : path
+}
+
+/**
+ * Extract all draft-local image srcs from an HTML string as draft-relative
+ * paths (skips data: URIs, external URLs, and empty strings).
+ */
+function extractLocalImgSrcs(html, projectName) {
   const srcs = new Set()
   // Match src="..." and src='...' in <img> tags
   const re = /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi
   let m
   while ((m = re.exec(html)) !== null) {
-    const src = m[1].trim()
-    if (!src || src.startsWith('data:') || /^https?:\/\//i.test(src) || src.startsWith('//')) continue
-    // Strip leading /
-    const clean = src.replace(/^\/+/, '')
-    srcs.add(clean)
+    const rel = draftRelFromImgSrc(m[1], projectName)
+    if (rel) srcs.add(rel)
   }
   return [...srcs]
 }
 
 /**
  * Given an HTML string and a map of { draftRelPath → publicUrl },
- * replace every matching local img src with its public URL.
+ * replace every matching local img src with its public URL. Srcs that do not
+ * map (e.g. an image whose publish failed) still get any fileToken stripped
+ * so a token never appears in the public copy.
  */
-function rewriteImgSrcs(html, urlMap) {
+function rewriteImgSrcs(html, urlMap, projectName) {
   return html.replace(/<img\b([^>]*)\bsrc\s*=\s*(["'])([^"']+)\2([^>]*)>/gi, (full, pre, q, src, post) => {
-    const clean = src.trim().replace(/^\/+/, '')
-    const replacement = urlMap[clean]
+    const rel = draftRelFromImgSrc(src, projectName)
+    const replacement = rel ? urlMap[rel] : null
     if (replacement) return `<img${pre}src=${q}${replacement}${q}${post}>`
+    const stripped = stripFileToken(src.trim())
+    if (stripped !== src.trim()) return `<img${pre}src=${q}${stripped}${q}${post}>`
     return full
   })
 }
@@ -128,7 +162,7 @@ function revertImgSrcs(html, reverseMap) {
  *   { urlMap: { draftRel → publicUrl }, reverseMap: { publicUrl → draftRel } }
  */
 async function publishHtmlImages(projectName, htmlContent) {
-  const localSrcs = extractLocalImgSrcs(htmlContent)
+  const localSrcs = extractLocalImgSrcs(htmlContent, projectName)
   const urlMap = {}
   const reverseMap = {}
 
@@ -157,11 +191,35 @@ async function publishHtmlImages(projectName, htmlContent) {
 }
 
 /**
+ * Extract image srcs from PUBLISHED HTML that point at this project's public
+ * copies (publish rewrites srcs to absolute public @-URLs, so the draft-local
+ * extractor never matches them). Returns public-relative paths.
+ */
+function extractPublishedImageRels(html, projectName) {
+  const rels = new Set()
+  const publicPrefix = `/@${freezrMeta.userId}/${freezrMeta.appName}.files/projects/${projectName}/public/`
+  const re = /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi
+  let m
+  while ((m = re.exec(html)) !== null) {
+    let s = m[1].trim()
+    if (/^https?:\/\//i.test(s)) {
+      try { s = new URL(s).pathname } catch (_) { continue }
+    }
+    s = s.split('#')[0].split('?')[0]
+    if (s.startsWith(publicPrefix)) rels.add(s.slice(publicPrefix.length))
+  }
+  return [...rels]
+}
+
+/**
  * Un-share all image files found in the published HTML.
  * Does NOT un-share CSS/JS files.
  */
 async function unpublishHtmlImages(projectName, publishedHtml) {
-  const localSrcs = extractLocalImgSrcs(publishedHtml)
+  const localSrcs = new Set([
+    ...extractLocalImgSrcs(publishedHtml, projectName),
+    ...extractPublishedImageRels(publishedHtml, projectName)
+  ])
   for (const relSrc of localSrcs) {
     const fullPath = publicPath(projectName, relSrc)
     try {
@@ -192,8 +250,8 @@ async function fetchPublishedHtml(projectName, rel) {
 }
 
 async function fetchDraftAsTextOrBlob(draftPath) {
-  const res = await fetch(fepsUrl(draftPath), { credentials: 'include' })
-  if (!res.ok) throw new Error(`Fetch failed ${draftPath}: ${res.status}`)
+  // Bearer-authenticated — the ambient cookie no longer works for userfiles.
+  const res = await fetchUserFile(draftPath)
   if (isProbablyTextPath(draftPath)) {
     return { kind: 'text', text: await res.text() }
   }
@@ -327,9 +385,9 @@ export async function publishProjectSite(project, page, opts = {}) {
     const draftHtmlResult = await fetchDraftAsTextOrBlob(draftPath(projectName, entryRel))
     if (draftHtmlResult.kind === 'text') {
       const { urlMap } = await publishHtmlImages(projectName, draftHtmlResult.text)
-      if (Object.keys(urlMap).length > 0) {
-        htmlForPublic = rewriteImgSrcs(draftHtmlResult.text, urlMap)
-      }
+      // Always rewrite: maps draft images to public URLs AND strips any
+      // ?fileToken= the in-app display may have left in the draft HTML.
+      htmlForPublic = rewriteImgSrcs(draftHtmlResult.text, urlMap, projectName)
     }
   } catch (e) {
     console.warn('publishProjectSite: image scan failed', e)

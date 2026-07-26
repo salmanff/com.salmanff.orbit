@@ -10,6 +10,7 @@ import {
 } from './publishService.js'
 import { sendOrbitChatMessage } from './orbitChat.js'
 import { extractStreamDisplay } from './parseFreezrResponse.js'
+import { fetchUserText, fetchUserBlob, tokenizedUrl, setImgSrcWithRetry } from './fileFetch.js'
 // Permissions are loaded via reloadPermissions() (below) and cached on
 // state.permissions — NOT via the per-call helpers in publishService /
 // orbitChat, which silently swallow errors.
@@ -590,11 +591,8 @@ function draftBasePath() {
 }
 
 async function fetchText(relPath) {
-  const path = freezr.getFileUrl(relPath)
-  const url = path.startsWith('http') ? path : (window.location.origin + path)
-  const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) throw new Error(`Failed to load ${relPath}: ${res.status}`)
-  return res.text()
+  // Bearer-authenticated fetch — the ambient cookie no longer works for userfiles.
+  return fetchUserText(relPath)
 }
 
 function langFromPath(path) {
@@ -1097,22 +1095,86 @@ function buildDraftBaseUrl() {
   return `${window.location.origin}/feps/userfiles/${appName}/${userId}/${draftBasePath()}/`
 }
 
-function buildFullDraftHtml(rawHtml, page) {
+/**
+ * Normalize a draft-HTML img src to a path relative to the draft root, or
+ * return null when it isn't a draft file (data:/blob:/external/public URLs).
+ * Accepts plain relative paths, root-relative /feps/userfiles/... paths and
+ * same-origin absolute userfiles URLs; any existing ?fileToken= is dropped
+ * so a stale token is always replaced by a fresh one.
+ */
+function draftRelFromSrc(src) {
+  let s = (src || '').trim()
+  if (!s || s.startsWith('data:') || s.startsWith('blob:') || s.startsWith('//')) return null
+  if (/^https?:\/\//i.test(s)) {
+    if (!s.startsWith(window.location.origin + '/')) return null
+    try { s = new URL(s).pathname } catch (_) { return null }
+  }
+  s = s.split('#')[0].split('?')[0]
+  const userfilesPrefix = `/feps/userfiles/${freezrMeta.appName}/${freezrMeta.userId}/`
+  if (s.startsWith(userfilesPrefix)) s = s.slice(userfilesPrefix.length)
+  // Other server routes (another app's userfiles, public @-URLs, APIs) — leave alone.
+  else if (s.startsWith('/feps/') || s.startsWith('/ceps/') || s.startsWith('/@')) return null
+  s = s.replace(/^\/+/, '')
+  const draftPrefix = `${draftBasePath()}/`
+  if (s.startsWith(draftPrefix)) return s.slice(draftPrefix.length)
+  return s
+}
+
+/** Rewrite every draft-local <img> src to an absolute, fileToken-ed URL. */
+function tokenizeDraftImgSrcs(rawHtml, base, tokenQuery) {
+  return rawHtml.replace(/<img\b([^>]*)\bsrc\s*=\s*(["'])([^"']+)\2([^>]*)>/gi, (full, pre, q, src, post) => {
+    const rel = draftRelFromSrc(src)
+    if (!rel) return full
+    return `<img${pre}src=${q}${base}${rel}${tokenQuery}${q}${post}>`
+  })
+}
+
+// Injected into the preview document: on the FIRST failed <img> load, ask the
+// parent (Orbit) to rebuild the preview with fresh fileTokens. The parent
+// rate-limits, so an image that is genuinely missing cannot cause a loop.
+const PREVIEW_IMG_RETRY_SCRIPT = `<script>(function () {
+  var sent = false
+  document.addEventListener('error', function (e) {
+    var t = e.target
+    if (!t || t.tagName !== 'IMG' || sent) return
+    sent = true
+    try { parent.postMessage({ orbit: 'imgTokenRetry' }, '*') } catch (_) {}
+  }, true)
+})()</script>`
+
+async function buildFullDraftHtml(rawHtml, page) {
   const base = buildDraftBaseUrl()
+  // One self-scoped fileToken covers every file of this app for this user.
+  // Native loads (<img>, <link>, <script>) can't send the Bearer header, so
+  // each URL carries the short-lived token instead.
+  let tokenQuery = ''
+  try {
+    const token = await freezr.utils.getFileToken('')
+    if (token) tokenQuery = '?fileToken=' + encodeURIComponent(token)
+  } catch (e) {
+    console.warn('Orbit: could not mint preview fileToken — preview assets may fail to load', e)
+  }
   const cssLinks = (page.css_files || [])
-    .map((f) => `<link rel="stylesheet" href="${base}${f}" />`)
+    .map((f) => `<link rel="stylesheet" href="${base}${f}${tokenQuery}" />`)
     .join('\n')
   const jsScripts = (page.js_files || [])
-    .map((f) => `<script src="${base}${f}"></script>`)
+    .map((f) => `<script src="${base}${f}${tokenQuery}"></script>`)
     .join('\n')
   const title = page.meta?.title || page.name || ''
 
-  const hasHead = /<head[\s>]/i.test(rawHtml)
+  const tokenizedHtml = tokenizeDraftImgSrcs(rawHtml, base, tokenQuery)
+  const tailScripts = `${jsScripts}\n${PREVIEW_IMG_RETRY_SCRIPT}`
+
+  const hasHead = /<head[\s>]/i.test(tokenizedHtml)
   if (hasHead) {
-    let html = rawHtml
+    let html = tokenizedHtml
     const inject = `<base href="${base}" />\n  ${cssLinks}`
     html = html.replace(/<head([^>]*)>/i, (m) => `${m}\n  ${inject}`)
-    html = html.replace(/<\/body>/i, `${jsScripts}\n</body>`)
+    if (/<\/body>/i.test(html)) {
+      html = html.replace(/<\/body>/i, `${tailScripts}\n</body>`)
+    } else {
+      html += `\n${tailScripts}`
+    }
     return html
   }
 
@@ -1125,8 +1187,8 @@ function buildFullDraftHtml(rawHtml, page) {
   ${cssLinks}
 </head>
 <body>
-${rawHtml}
-${jsScripts}
+${tokenizedHtml}
+${tailScripts}
 </body>
 </html>`
 }
@@ -1144,7 +1206,7 @@ async function refreshPreview() {
 
   const htmlPath = `${draftBasePath()}/${page.html_file}`
   const rawHtml = await fetchText(htmlPath)
-  const html = buildFullDraftHtml(rawHtml, page)
+  const html = await buildFullDraftHtml(rawHtml, page)
 
   if (previewObjectUrl) {
     URL.revokeObjectURL(previewObjectUrl)
@@ -1153,6 +1215,25 @@ async function refreshPreview() {
   const blob = new Blob([html], { type: 'text/html' })
   previewObjectUrl = URL.createObjectURL(blob)
   iframe.src = previewObjectUrl
+}
+
+/**
+ * The preview iframe posts { orbit: 'imgTokenRetry' } when an <img> fails to
+ * load (most likely an expired fileToken on a long-lived page). Rebuild the
+ * preview once — the SDK token cache will have expired with the token, so
+ * the rebuild carries a freshly minted token. Rate-limited so a genuinely
+ * broken image can't trigger a rebuild loop.
+ */
+let lastPreviewTokenRetryAt = 0
+function bindPreviewImgTokenRetry() {
+  window.addEventListener('message', (e) => {
+    if (!e.data || e.data.orbit !== 'imgTokenRetry') return
+    const now = Date.now()
+    if (now - lastPreviewTokenRetryAt < 30000) return
+    lastPreviewTokenRetryAt = now
+    if (state.rightMode !== 'preview') return
+    refreshPreview().catch((err) => console.warn('Orbit: preview token retry failed', err))
+  })
 }
 
 function isImagePath(p) {
@@ -1166,10 +1247,18 @@ function isTextEditablePath(p) {
   return /\.(html?|css|js|mjs|cjs|jsx|ts|tsx|json|md|markdown|txt|xml|yml|yaml|csv|log|sh|py|rb|go|rs|java|c|h|cpp|sql|env|gitignore|map)$/i.test(p) || !/\.[^./\\]+$/.test(p)
 }
 
-function assetUrlsForDraftPath(fullDraftPath) {
+async function assetUrlsForDraftPath(fullDraftPath) {
   if (!fullDraftPath) return { privateUrl: '', publicUrl: '', isPublished: false }
-  const rawPrivate = freezr.getFileUrl(fullDraftPath) || ''
-  const privateUrl = rawPrivate.startsWith('http') ? rawPrivate : (window.location.origin + rawPrivate)
+  // Private URLs carry a short-lived (~10 min) fileToken — a bare userfiles
+  // URL no longer loads in a browser tab or <img> without one.
+  let privateUrl = ''
+  try {
+    privateUrl = (await tokenizedUrl(fullDraftPath)) || ''
+  } catch (_) {}
+  if (!privateUrl) {
+    const rawPrivate = freezr.getFileUrl(fullDraftPath) || ''
+    privateUrl = rawPrivate.startsWith('http') ? rawPrivate : (window.location.origin + rawPrivate)
+  }
 
   const isPublished = !!state.publishedFiles[fullDraftPath]
   let publicUrl = ''
@@ -1219,11 +1308,7 @@ function getFilesInFolder(tree, folderRel) {
 }
 
 async function renameFileOnServer(oldFullPath, newFullPath) {
-  const res = await fetch(freezr.getFileUrl(oldFullPath).startsWith('http')
-    ? freezr.getFileUrl(oldFullPath)
-    : window.location.origin + freezr.getFileUrl(oldFullPath), { credentials: 'include' })
-  if (!res.ok) throw new Error(`Could not read ${oldFullPath}: ${res.status}`)
-  const blob = await res.blob()
+  const blob = await fetchUserBlob(oldFullPath)
   const last = newFullPath.lastIndexOf('/')
   const folder = last >= 0 ? newFullPath.slice(0, last) : ''
   const fileName = last >= 0 ? newFullPath.slice(last + 1) : newFullPath
@@ -1299,14 +1384,7 @@ async function publishImageFile(fullPath) {
   try {
     const draftFullPath = fullPath
     const publicFullPath = fullPath.replace('/draft/', '/public/')
-    const res = await fetch(
-      freezr.getFileUrl(draftFullPath).startsWith('http')
-        ? freezr.getFileUrl(draftFullPath)
-        : window.location.origin + freezr.getFileUrl(draftFullPath),
-      { credentials: 'include' }
-    )
-    if (!res.ok) throw new Error(`Could not read file: ${res.status}`)
-    const blob = await res.blob()
+    const blob = await fetchUserBlob(draftFullPath)
     const last = publicFullPath.lastIndexOf('/')
     const folder = last >= 0 ? publicFullPath.slice(0, last) : ''
     const fileName = last >= 0 ? publicFullPath.slice(last + 1) : publicFullPath
@@ -1386,6 +1464,12 @@ async function render() {
   const proj = state.currentProject
   const page = getActivePage()
 
+  // Pre-compute (async) tokenized asset URLs for the image toolbar — the
+  // template below is built synchronously.
+  const assetInfo = (state.rightMode === 'image' && state.currentFilePath)
+    ? await assetUrlsForDraftPath(state.currentFilePath)
+    : { privateUrl: '', publicUrl: '', isPublished: false }
+
   // Session-expired banner (shown once at top of left panel)
   const sessionBanner = sessionExpired
     ? `<div class="orbit-perm-banner orbit-session-expired-banner" role="alert">
@@ -1437,7 +1521,7 @@ async function render() {
         </div>` : ''}
         ${state.rightMode === 'image' ? (() => {
           const fp = state.currentFilePath
-          const { privateUrl, publicUrl, isPublished } = assetUrlsForDraftPath(fp)
+          const { privateUrl, publicUrl, isPublished } = assetInfo
           return `<div class="orbit-right-toolbar">
             <span class="orbit-meta">${fp ? fp.split('/').pop() : ''}</span>
             <button type="button" id="orbit-img-publish" class="orbit-btn orbit-btn-sm" ${canPublish ? '' : 'disabled'}>Publish</button>
@@ -1448,6 +1532,7 @@ async function render() {
               <button type="button" class="orbit-btn orbit-btn-sm" data-copy-url="private">Copy private URL</button>
               <input type="text" class="orbit-asset-url-input" data-asset-url="private" readonly value="${escapeHtml(privateUrl)}" />
             </div>
+            <div class="orbit-asset-url-hint">Private URL includes a temporary access token (expires in ~10 min). Inside your site pages, reference the file by its relative path instead.</div>
             ${isPublished ? `<div class="orbit-asset-url-row">
               <button type="button" class="orbit-btn orbit-btn-sm" data-copy-url="public">Copy public URL</button>
               <input type="text" class="orbit-asset-url-input" data-asset-url="public" readonly value="${escapeHtml(publicUrl)}" />
@@ -1490,13 +1575,17 @@ async function render() {
     if (!pg) return
     try {
       const rawHtml = await fetchText(`${draftBasePath()}/${pg.html_file}`)
-      const fullHtml = buildFullDraftHtml(rawHtml, pg)
+      const fullHtml = await buildFullDraftHtml(rawHtml, pg)
       const blob = new Blob([fullHtml], { type: 'text/html' })
       const url = URL.createObjectURL(blob)
       window.open(url, '_blank')
     } catch (e) {
       console.warn('Could not open draft', e)
-      window.open(buildDraftBaseUrl() + pg.html_file, '_blank')
+      try {
+        window.open(await tokenizedUrl(`${draftBasePath()}/${pg.html_file}`), '_blank')
+      } catch (_) {
+        window.open(buildDraftBaseUrl() + pg.html_file, '_blank')
+      }
     }
   })
 
@@ -1515,16 +1604,19 @@ async function render() {
     const imgEl = document.getElementById('orbit-image-preview')
     if (imgEl) {
       const fp = state.currentFilePath
-      const url = freezr.getFileUrl(fp)
-      const fullUrl = url.startsWith('http') ? url : (window.location.origin + url)
       const name = fp.split('/').pop()
       if (isImagePath(fp)) {
-        imgEl.innerHTML = `<img src="${fullUrl}" alt="${escapeHtml(name)}" class="orbit-image-preview-img" />`
+        // src is set asynchronously with a fileToken; retries once with a
+        // fresh token if the load fails (tokens expire after ~10 min).
+        imgEl.innerHTML = `<img alt="${escapeHtml(name)}" class="orbit-image-preview-img" />`
+        const imgTag = imgEl.querySelector('img')
+        if (imgTag) setImgSrcWithRetry(imgTag, fp)
       } else {
+        const tokUrl = assetInfo.privateUrl || ''
         imgEl.innerHTML = `<div class="orbit-asset-placeholder">
           <div class="orbit-asset-placeholder-icon">&#128196;</div>
           <div class="orbit-asset-placeholder-name">${escapeHtml(name)}</div>
-          <a class="orbit-asset-placeholder-link" href="${escapeHtml(fullUrl)}" target="_blank" rel="noopener">Open in new tab ↗</a>
+          <a class="orbit-asset-placeholder-link" href="${escapeHtml(tokUrl)}" target="_blank" rel="noopener">Open in new tab ↗</a>
         </div>`
       }
     }
@@ -1987,13 +2079,17 @@ async function renderLeftPanel(opts = {}) {
         if (!pg) return
         try {
           const rawHtml = await fetchText(`${draftBasePath()}/${pg.html_file}`)
-          const fullHtml = buildFullDraftHtml(rawHtml, pg)
+          const fullHtml = await buildFullDraftHtml(rawHtml, pg)
           const blob = new Blob([fullHtml], { type: 'text/html' })
           const url = URL.createObjectURL(blob)
           window.open(url, '_blank')
         } catch (e) {
           console.warn('Could not open draft', e)
-          window.open(buildDraftBaseUrl() + pg.html_file, '_blank')
+          try {
+            window.open(await tokenizedUrl(`${draftBasePath()}/${pg.html_file}`), '_blank')
+          } catch (_) {
+            window.open(buildDraftBaseUrl() + pg.html_file, '_blank')
+          }
         }
       })
     })
@@ -3064,6 +3160,16 @@ export async function initOrbit() {
   bindBeforeUnloadGuard()
   bindSaveShortcut()
   exposeDebugHandle()
+  bindPreviewImgTokenRetry()
+
+  // Safety net: auto-append a fileToken to any <img>/<video>/<source> in the
+  // app's own DOM that still points at a bare userfiles URL (covers anything
+  // rendered without going through setImgSrcWithRetry / tokenizedUrl).
+  try {
+    if (freezr.utils && typeof freezr.utils.observeFileTokens === 'function') {
+      freezr.utils.observeFileTokens()
+    }
+  } catch (e) { console.warn('Orbit: observeFileTokens failed', e) }
 
   // render() must always run — it is the only thing that mounts the UI.
   try {
