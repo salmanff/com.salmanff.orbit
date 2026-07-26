@@ -1,36 +1,21 @@
 /**
  * Authenticated access to private userfiles.
  *
- * freezr has retired the ambient app_token cookie for /feps/userfiles — every
- * request now needs either an `Authorization: Bearer <app_token>` header
- * (programmatic fetch — zero token leakage into URLs) or a short-lived
- * `?fileToken=` in the URL (native <img>/<link>/<script> loads, which cannot
- * send headers). See freezr-context.md "Displaying PRIVATE files".
+ * freezr has retired the ambient app_token cookie for /feps/userfiles, and the
+ * server no longer accepts an `Authorization: Bearer <app_token>` header on
+ * that route either (deliberately closed off - see basicAuth.mjs
+ * createGetFileTokenInfo). The only credential it honours is a short-lived
+ * `?fileToken=` in the URL, minted via GET /feps/getuserfiletoken. See
+ * freezr-context.md "Displaying PRIVATE files".
  */
 
-function appToken() {
-  try {
-    if (freezr.app && freezr.app.isWebBased === false) return freezrMeta.appToken || ''
-    return freezr.utils.getCookie('app_token_' + freezrMeta.userId) || ''
-  } catch (_) {
-    return ''
-  }
-}
-
-function bareUrl(path) {
-  const p = freezr.getFileUrl(path)
-  return p.startsWith('http') ? p : window.location.origin + p
-}
-
 /**
- * Fetch a private userfile with the Bearer header (no token in any URL).
+ * Fetch a private userfile via a tokenized URL (?fileToken=).
  * Returns the Response; throws an Error with `.status` on a non-2xx response.
  */
 export async function fetchUserFile(path) {
-  const token = appToken()
-  const res = await fetch(bareUrl(path), {
-    headers: token ? { Authorization: 'Bearer ' + token } : {}
-  })
+  const url = await tokenizedUrl(path)
+  const res = await fetch(url)
   if (!res.ok) {
     const err = new Error(`Failed to load ${path}: ${res.status}`)
     err.status = res.status
