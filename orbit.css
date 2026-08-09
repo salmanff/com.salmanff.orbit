@@ -1450,6 +1450,253 @@ body.orbit-resizing {
   color: var(--orbit-muted);
 }
 
+/* ---- Settings block (foot of the Files tab) ---- */
+
+.orbit-settings {
+  margin-top: 1.2rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--orbit-border);
+}
+
+.orbit-settings-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--orbit-muted);
+}
+
+.orbit-settings-section {
+  border: 1px solid var(--orbit-border);
+  border-radius: 6px;
+  background: var(--orbit-panel);
+  overflow: hidden;
+}
+
+.orbit-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  background: none;
+  border: none;
+  color: var(--orbit-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.orbit-settings-header:hover {
+  background: rgba(88, 166, 255, 0.06);
+}
+
+.orbit-settings-caret {
+  color: var(--orbit-muted);
+  font-size: 0.7rem;
+}
+
+.orbit-settings-title {
+  font-weight: 600;
+}
+
+.orbit-settings-summary {
+  margin-left: auto;
+  color: var(--orbit-muted);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-settings-body {
+  padding: 0.6rem;
+  border-top: 1px solid var(--orbit-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.orbit-settings-body p {
+  margin: 0;
+}
+
+.orbit-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.orbit-settings-row label {
+  flex: 0 0 5.5rem;
+  font-size: 0.8rem;
+  color: var(--orbit-muted);
+}
+
+.orbit-settings-row .orbit-select,
+.orbit-settings-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.orbit-settings-input {
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+}
+
+.orbit-settings-note {
+  font-size: 0.75rem;
+  color: var(--orbit-muted);
+  word-break: break-word;
+}
+
+/* ---- Settings & Projects: a full-width view, not a side panel ---- */
+
+.orbit-body--settings {
+  display: block;
+  overflow-y: auto;
+}
+
+.orbit-settings-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.orbit-settings-scroll {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+}
+
+.orbit-settings-page-title {
+  margin: 0 0 1.25rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.orbit-settings-scroll .orbit-settings-heading {
+  margin-top: 1.5rem;
+}
+
+.orbit-settings-scroll .orbit-settings-heading:first-of-type {
+  margin-top: 0;
+}
+
+.orbit-newproj-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.orbit-newproj-row .orbit-settings-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.orbit-newproj-row .orbit-btn {
+  flex: 0 0 auto;
+}
+
+.orbit-settings-note--error {
+  color: #f85149;
+}
+
+/* ---- project list ---- */
+
+.orbit-proj-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.orbit-proj-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--orbit-border);
+}
+
+.orbit-proj-row:last-child {
+  border-bottom: none;
+}
+
+.orbit-proj-row.is-current {
+  background: rgba(88, 166, 255, 0.07);
+}
+
+.orbit-proj-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.orbit-proj-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-proj-id {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  color: var(--orbit-muted);
+}
+
+/* Kept quiet until hover — a delete control should not draw the eye. */
+.orbit-proj-delete {
+  flex: 0 0 auto;
+  opacity: 0.45;
+}
+
+.orbit-proj-row:hover .orbit-proj-delete,
+.orbit-proj-delete:focus-visible {
+  opacity: 1;
+}
+
+.orbit-proj-empty {
+  padding: 0.6rem;
+}
+
+/* The Settings tab stacks its action buttons full width. */
+.orbit-settings-body > .orbit-btn {
+  width: 100%;
+}
+
+/* A file input styled as a button — the input itself is hidden (.orbit-upload-input). */
+.orbit-import-label {
+  display: block;
+  cursor: pointer;
+}
+
+.orbit-import-label .orbit-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.orbit-import-label.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.orbit-settings-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--orbit-muted);
+  cursor: pointer;
+}
+
 .orbit-legacy-section {
   margin-top: 1.2rem;
   padding-top: 0.8rem;

@@ -39,15 +39,49 @@ function uniqueRelPathsOrdered(list) {
   return out
 }
 
+/** Housekeeping files that are never part of the site. */
+function isNotSiteContent(rel) {
+  const name = rel.split('/').pop() || ''
+  return name.startsWith('.')
+}
+
 /**
- * Relative paths under projects/{id}/draft|public that must exist for this page.
+ * Relative paths under projects/{id}/draft|public that must be published for this page.
+ *
+ * The page's own html/css/js, PLUS every other file in the project folder. That
+ * second part matters because a page can load files at runtime — a slide it
+ * fetches, a JSON data file — and there is no way for it to authenticate: a
+ * visitor to a published site is anonymous, so they cannot mint a fileToken.
+ * The file has to genuinely BE public, which means it has to be copied and
+ * shared here, whether or not anything declared it.
+ *
+ * The one exclusion is another page's entry HTML: each page has its own Publish
+ * button and its own published/unpublished state, so publishing page A must not
+ * quietly put page B on the web.
+ *
+ * @param {object} page
+ * @param {string[]} [projectFileRels] - every file in the project draft folder,
+ *   relative to the draft root. Omit and only the declared resources publish.
+ * @param {object} [project] - used to find the other pages' entry HTML files.
  */
-export function buildPublishRelativePaths(page) {
+export function buildPublishRelativePaths(page, projectFileRels, project) {
   if (!page) return []
   const rels = []
   if (page.html_file) rels.push(normalizeRelPath(page.html_file))
   for (const p of page.css_files || []) rels.push(normalizeRelPath(p))
   for (const p of page.js_files || []) rels.push(normalizeRelPath(p))
+
+  const otherPageHtml = new Set(
+    (project?.pages || [])
+      .filter((p) => p !== page)
+      .map((p) => normalizeRelPath(p.html_file))
+      .filter(Boolean)
+  )
+  for (const raw of projectFileRels || []) {
+    const rel = normalizeRelPath(raw)
+    if (!rel || otherPageHtml.has(rel) || isNotSiteContent(rel)) continue
+    rels.push(rel)
+  }
   return uniqueRelPathsOrdered(rels)
 }
 
@@ -262,7 +296,7 @@ async function fetchDraftAsTextOrBlob(draftPath) {
  * Copy only listed relative paths from draft → public.
  * For the HTML entry file, `htmlRewrite` may provide a rewritten version with public image URLs.
  */
-async function syncDraftToPublicExplicit(projectName, relativePaths, htmlEntryRel, htmlRewrite) {
+async function syncDraftToPublicExplicit(projectName, relativePaths, htmlEntryRel, htmlRewrite, onWarning) {
   const list = uniqueRelPathsOrdered(relativePaths)
   if (list.length === 0) {
     throw new Error('No files in publish set (page html / css / js).')
@@ -270,16 +304,28 @@ async function syncDraftToPublicExplicit(projectName, relativePaths, htmlEntryRe
   for (const rel of list) {
     const from = draftPath(projectName, rel)
     const to = publicPath(projectName, rel)
-    if (htmlRewrite && rel === htmlEntryRel) {
-      // Write the image-rewritten HTML to public (draft is unchanged)
-      await uploadToPath(to, htmlRewrite, null, 'text/html')
-    } else {
-      const got = await fetchDraftAsTextOrBlob(from)
-      if (got.kind === 'text') {
-        await uploadToPath(to, got.text, null)
+    const isEntry = rel === htmlEntryRel
+    try {
+      if (htmlRewrite && isEntry) {
+        // Write the image-rewritten HTML to public (draft is unchanged)
+        await uploadToPath(to, htmlRewrite, null, 'text/html')
       } else {
-        await uploadToPath(to, undefined, got.blob)
+        const got = await fetchDraftAsTextOrBlob(from)
+        if (got.kind === 'text') {
+          await uploadToPath(to, got.text, null)
+        } else {
+          await uploadToPath(to, undefined, got.blob)
+        }
       }
+    } catch (e) {
+      // The whole project folder is in the publish set now, so a single
+      // awkward file — oversized, odd name, momentary network failure — must
+      // not take the page down with it. The ENTRY html is the exception:
+      // without it there is no page to serve.
+      if (isEntry) throw e
+      const msg = rel + ': ' + (e.message || String(e))
+      console.warn('publishProjectSite: could not copy to public —', msg, e)
+      if (onWarning) onWarning(msg)
     }
   }
 }
@@ -356,13 +402,19 @@ async function loadFileRecord(fullPath) {
  * @param {string} [opts.previousPublicId] If the public ID changed, unpublish the old one first.
  * @param {boolean} [opts.forcePublicIdTakeover] If the chosen publicid is held by an orphaned/conflicting
  *   public record, delete it (and clean up the source `_accessibles` entry when same collection) instead of failing.
+ * @param {string[]} [opts.projectFileRels] Every file in the project draft folder (relative to the
+ *   draft root). Published alongside the declared resources so files the page fetches at runtime
+ *   resolve on the live site — see buildPublishRelativePaths.
+ * @param {(message: string) => void} [opts.onWarning] Called once per file that could not be
+ *   copied or shared. These are not fatal — the page still publishes — but the caller should
+ *   surface them, or a half-published site looks like a fully published one.
  */
 export async function publishProjectSite(project, page, opts = {}) {
   if (!project?.name) throw new Error('Invalid project')
   if (!page?.html_file) throw new Error('Page must have html_file')
 
   const projectName = project.name
-  const rels = buildPublishRelativePaths(page)
+  const rels = buildPublishRelativePaths(page, opts.projectFileRels, project)
   if (rels.length === 0) throw new Error('Nothing to publish')
 
   if (opts.previousPublicId && opts.customPublicId && opts.previousPublicId !== opts.customPublicId) {
@@ -381,10 +433,12 @@ export async function publishProjectSite(project, page, opts = {}) {
   // 1. Read draft HTML and publish any local images referenced inside it
   const entryRel = normalizeRelPath(page.html_file)
   let htmlForPublic = null
+  let imageRels = []
   try {
     const draftHtmlResult = await fetchDraftAsTextOrBlob(draftPath(projectName, entryRel))
     if (draftHtmlResult.kind === 'text') {
       const { urlMap } = await publishHtmlImages(projectName, draftHtmlResult.text)
+      imageRels = Object.keys(urlMap)
       // Always rewrite: maps draft images to public URLs AND strips any
       // ?fileToken= the in-app display may have left in the draft HTML.
       htmlForPublic = rewriteImgSrcs(draftHtmlResult.text, urlMap, projectName)
@@ -393,8 +447,17 @@ export async function publishProjectSite(project, page, opts = {}) {
     console.warn('publishProjectSite: image scan failed', e)
   }
 
-  // 2. Copy all declared files (HTML, CSS, JS) to public
-  await syncDraftToPublicExplicit(projectName, rels, entryRel, htmlForPublic)
+  // 2. Copy everything in the publish set to public. publishHtmlImages has
+  // already copied and shared the <img>-referenced images, so skip those.
+  const imageRelSet = new Set(imageRels)
+  const warn = typeof opts.onWarning === 'function' ? opts.onWarning : null
+  await syncDraftToPublicExplicit(
+    projectName,
+    rels.filter((rel) => !imageRelSet.has(rel)),
+    entryRel,
+    htmlForPublic,
+    warn
+  )
 
   const cssRels = uniqueRelPathsOrdered(page.css_files || [])
   const jsRels = uniqueRelPathsOrdered(page.js_files || [])
@@ -411,6 +474,22 @@ export async function publishProjectSite(project, page, opts = {}) {
     const full = publicPath(projectName, rel)
     const pid = await sharePublicFileForPublish(full)
     jsStructure.push({ publicid: pid })
+  }
+
+  // 3. Share the rest — files the page loads at runtime rather than declaring.
+  // Nothing references them from the page skeleton, so they need no publicid
+  // recorded; they just have to be publicly readable at their own URL. One
+  // failure must not abort the publish: the page itself is still worth serving.
+  const declared = new Set([entryRel, ...cssRels, ...jsRels, ...imageRels])
+  for (const rel of rels) {
+    if (declared.has(rel)) continue
+    try {
+      await sharePublicFileForPublish(publicPath(projectName, rel))
+    } catch (e) {
+      const msg = rel + ': ' + (e.message || String(e))
+      console.warn('publishProjectSite: could not share runtime asset —', msg, e)
+      if (warn) warn(msg)
+    }
   }
 
   const entryPath = publicPath(projectName, entryRel)

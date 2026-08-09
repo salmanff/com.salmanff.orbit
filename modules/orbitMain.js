@@ -11,6 +11,11 @@ import {
 import { sendOrbitChatMessage } from './orbitChat.js'
 import { extractStreamDisplay } from './parseFreezrResponse.js'
 import { fetchUserText, fetchUserBlob, tokenizedUrl, setImgSrcWithRetry } from './fileFetch.js'
+import { makeLlmState, loadLlmProviders, renderLlmSettings, bindLlmSettings, llmAskOptions } from './llmSettings.js'
+import {
+  buildProjectBundle, validateBundle, applyProjectBundle,
+  downloadBundle, approxBundleSize, isValidProjectName
+} from './projectTransfer.js'
 // Permissions are loaded via reloadPermissions() (below) and cached on
 // state.permissions — NOT via the per-call helpers in publishService /
 // orbitChat, which silently swallow errors.
@@ -32,6 +37,50 @@ function readLeftPanelWidth() {
     if (Number.isFinite(n) && n >= 200 && n <= 560) return n
   } catch (_) {}
   return 300
+}
+
+const LS_KEY_RECENT = 'orbitRecentProjects'
+
+/** Project names, most recently opened first. */
+function readRecentProjects() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_KEY_RECENT))
+    return Array.isArray(raw) ? raw.filter((n) => typeof n === 'string') : []
+  } catch (_) {
+    return []
+  }
+}
+
+function rememberProject(name) {
+  if (!name) return
+  state.recentProjects = [name, ...state.recentProjects.filter((n) => n !== name)].slice(0, 12)
+  try {
+    localStorage.setItem(LS_KEY_RECENT, JSON.stringify(state.recentProjects))
+  } catch (_) {}
+}
+
+function forgetProject(name) {
+  state.recentProjects = state.recentProjects.filter((n) => n !== name)
+  try {
+    localStorage.setItem(LS_KEY_RECENT, JSON.stringify(state.recentProjects))
+  } catch (_) {}
+}
+
+/**
+ * The projects offered in the top dropdown: the three most recently opened that
+ * still exist, with the current one always present and first.
+ */
+function dropdownProjects() {
+  const byName = new Map(state.projects.map((p) => [p.name, p]))
+  const ordered = []
+  const push = (name) => {
+    if (!name || ordered.includes(name) || !byName.has(name)) return
+    ordered.push(name)
+  }
+  push(state.currentProject?.name)
+  state.recentProjects.forEach(push)
+  state.projects.forEach((p) => push(p.name))
+  return ordered.slice(0, 3).map((n) => byName.get(n))
 }
 
 const state = {
@@ -83,6 +132,25 @@ const state = {
    * masked real failures (e.g. network/API errors → buttons stuck disabled).
    * Now the state is explicit and inspectable at `window.__orbit.state`.
    */
+  /**
+   * Provider / model / max-tokens choice for LLM calls, plus the cached
+   * provider list from freezr.llm.ping(). See modules/llmSettings.js —
+   * rendered at the bottom of the Files tab.
+   */
+  llm: makeLlmState(),
+  /**
+   * 'project' = the Chat/Pages/Files workspace for one project.
+   * 'settings' = the Settings & Projects page, which REPLACES the workspace:
+   * no tabs, no preview pane. Project-level actions live only there, so they
+   * cannot be triggered by accident while you are working inside a project.
+   */
+  view: 'project',
+  /** Project names, most recently opened first. Persisted; the top 3 fill the dropdown. */
+  recentProjects: readRecentProjects(),
+  /** True while a project export/import/delete is running — disables the buttons. */
+  transferBusy: false,
+  /** Progress line shown under those buttons ('' when idle). */
+  transferStatus: '',
   permissions: {
     loaded: false,
     raw: null, // full array returned by freezr.perms.getAppPermissions()
@@ -590,6 +658,15 @@ function draftBasePath() {
   return `projects/${state.currentProject.name}/draft`
 }
 
+/** Every known project file, as a path relative to the draft root. */
+function draftRelFilePaths() {
+  if (!state.currentProject) return []
+  const prefix = `${draftBasePath()}/`
+  return state.fileList
+    .map((f) => (f.startsWith(prefix) ? f.slice(prefix.length) : null))
+    .filter(Boolean)
+}
+
 async function fetchText(relPath) {
   // Bearer-authenticated fetch — the ambient cookie no longer works for userfiles.
   return fetchUserText(relPath)
@@ -995,11 +1072,28 @@ async function runPublishPage(pageIndex, { skipUiRefresh = false } = {}) {
     const customId = page.custom_public_id || null
     const previousId = page.last_published_id || null
     const meta = page.meta || null
+    const publishWarnings = []
     const url = await publishWithTakeoverPrompt(proj, page, {
       customPublicId: customId,
       previousPublicId: previousId,
-      meta
+      meta,
+      // Everything in the project folder publishes with the page, so a file the
+      // page fetches at runtime resolves on the live site too (a visitor there
+      // is anonymous and cannot mint a fileToken for a private file).
+      projectFileRels: draftRelFilePaths(),
+      onWarning: (msg) => publishWarnings.push(msg)
     })
+    if (publishWarnings.length) {
+      // The page published, but not everything alongside it did — say so, with
+      // the failing paths. Silence here would read as a clean publish and the
+      // gap would only show up as a broken live site.
+      window.alert(
+        'The page published, but ' + publishWarnings.length + ' file' +
+        (publishWarnings.length > 1 ? 's' : '') + ' could not be published with it:\n\n' +
+        publishWarnings.join('\n') +
+        '\n\nAnything the page loads from those paths will be missing on the live site.'
+      )
+    }
     page.published = true
     page.public_url = url || null
     page.last_published_id = customId || defaultPublicIdForPage(proj.name, page)
@@ -1052,6 +1146,58 @@ function isPageDirty(page) {
 }
 
 
+
+/** Make `name` the current project and reload everything that hangs off it. */
+async function switchToProject(name) {
+  state.currentProject = state.projects.find((p) => p.name === name) || null
+  state.view = 'project'
+  if (state.currentProject) rememberProject(state.currentProject.name)
+  state.activePageIndex = 0
+  state.expandedFolder = null
+  if (state.currentProject) {
+    await refreshFileList()
+    const pg = getActivePage()
+    state.currentFilePath = pg ? `${draftBasePath()}/${pg.html_file}` : null
+    await loadChatHistoryForProject()
+  }
+  state.rightMode = 'preview'
+  await render()
+}
+
+/**
+ * Create an empty project (row + starter files) and switch to it.
+ * Lives in the Settings tab; the project dropdown only switches between
+ * projects that already exist.
+ */
+async function createProject(slug) {
+  const base = `projects/${slug}/draft`
+  await uploadText(`${base}/index.html`, starterIndexHtml, 'text/html')
+  await uploadText(`${base}/shared/common.css`, starterCss, 'text/css')
+  await freezr.create(
+    'projects',
+    {
+      name: slug,
+      display_name: slug,
+      description: '',
+      published: false,
+      public_url: null,
+      entry_page: 'index',
+      pages: [
+        {
+          name: 'index',
+          html_file: 'index.html',
+          css_files: ['shared/common.css'],
+          js_files: [],
+          published: false,
+          public_url: null
+        }
+      ]
+    },
+    {}
+  )
+  await loadProjects()
+  await switchToProject(slug)
+}
 
 async function persistProjectPages(proj) {
   await freezr.updateFields(
@@ -1129,27 +1275,44 @@ function tokenizeDraftImgSrcs(rawHtml, base, tokenQuery) {
   })
 }
 
-// Injected into the preview document: on the FIRST failed <img> load, ask the
-// parent (Orbit) to rebuild the preview with fresh fileTokens. The parent
-// rate-limits, so an image that is genuinely missing cannot cause a loop.
-const PREVIEW_IMG_RETRY_SCRIPT = `<script>(function () {
-  var sent = false
-  document.addEventListener('error', function (e) {
-    var t = e.target
-    if (!t || t.tagName !== 'IMG' || sent) return
-    sent = true
-    try { parent.postMessage({ orbit: 'imgTokenRetry' }, '*') } catch (_) {}
-  }, true)
-})()</script>`
+/**
+ * A <script src> tag for modules/previewRuntime.js, to be injected into the
+ * preview document's <head>.
+ *
+ * It must be an EXTERNAL script, not an inline one. The preview is a blob:
+ * document, and a blob: document inherits the CSP of the page that created it —
+ * Orbit's own page, served with `script-src 'self' 'nonce-...'`. An inline
+ * <script> there is blocked silently: no error, it simply never runs, which is
+ * exactly how the first version of this shim failed. A same-origin src is
+ * allowed by 'self'.
+ *
+ * The URL is derived from import.meta.url rather than assembled by hand, so it
+ * stays correct wherever the app is served from. Config rides on data-
+ * attributes, which no CSP touches.
+ */
+function previewRuntimeTag(base, token) {
+  const src = new URL('./previewRuntime.js', import.meta.url).href
+  return `<script src="${escapeAttr(src)}" data-base="${escapeAttr(base)}" data-token="${escapeAttr(token)}"></script>`
+}
+
+/** Escape a value for use inside a double-quoted HTML attribute. */
+function escapeAttr(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
 
 async function buildFullDraftHtml(rawHtml, page) {
   const base = buildDraftBaseUrl()
   // One self-scoped fileToken covers every file of this app for this user.
   // Native loads (<img>, <link>, <script>) can't send the Bearer header, so
   // each URL carries the short-lived token instead.
+  let token = ''
   let tokenQuery = ''
   try {
-    const token = await freezr.utils.getFileToken('')
+    token = (await freezr.utils.getFileToken('')) || ''
     if (token) tokenQuery = '?fileToken=' + encodeURIComponent(token)
   } catch (e) {
     console.warn('Orbit: could not mint preview fileToken — preview assets may fail to load', e)
@@ -1163,17 +1326,21 @@ async function buildFullDraftHtml(rawHtml, page) {
   const title = page.meta?.title || page.name || ''
 
   const tokenizedHtml = tokenizeDraftImgSrcs(rawHtml, base, tokenQuery)
-  const tailScripts = `${jsScripts}\n${PREVIEW_IMG_RETRY_SCRIPT}`
+  // The shim must be in <head>, ahead of the page's own scripts — it patches
+  // fetch/XHR and history, so anything that runs before it would still hit a
+  // bare 401 (or a SecurityError). A classic <script src> in <head> blocks, so
+  // it is guaranteed to have finished before the page's own scripts start.
+  const runtimeShim = previewRuntimeTag(base, token)
 
   const hasHead = /<head[\s>]/i.test(tokenizedHtml)
   if (hasHead) {
     let html = tokenizedHtml
-    const inject = `<base href="${base}" />\n  ${cssLinks}`
+    const inject = `<base href="${base}" />\n  ${runtimeShim}\n  ${cssLinks}`
     html = html.replace(/<head([^>]*)>/i, (m) => `${m}\n  ${inject}`)
     if (/<\/body>/i.test(html)) {
-      html = html.replace(/<\/body>/i, `${tailScripts}\n</body>`)
+      html = html.replace(/<\/body>/i, `${jsScripts}\n</body>`)
     } else {
-      html += `\n${tailScripts}`
+      html += `\n${jsScripts}`
     }
     return html
   }
@@ -1183,12 +1350,13 @@ async function buildFullDraftHtml(rawHtml, page) {
 <head>
   <meta charset="utf-8" />
   <base href="${base}" />
+  ${runtimeShim}
   <title>${escapeHtml(title)}</title>
   ${cssLinks}
 </head>
 <body>
 ${tokenizedHtml}
-${tailScripts}
+${jsScripts}
 </body>
 </html>`
 }
@@ -1449,9 +1617,89 @@ function scrollToRightPanelIfNeeded () {
   })
 }
 
+const SETTINGS_OPTION = '__settings__'
+
+/**
+ * The project dropdown, shared by the workspace and the settings page so the
+ * control never moves or changes shape between the two.
+ */
+function projectSelectHtml() {
+  const proj = state.currentProject
+  const inSettings = state.view === 'settings'
+  const options = dropdownProjects()
+    .map((p) => `<option value="${escapeHtml(p.name)}" ${(!inSettings && proj && p.name === proj.name) ? 'selected' : ''}>${escapeHtml(p.display_name || p.name)}</option>`)
+    .join('')
+  return `<select id="orbit-project-select" class="orbit-select">
+    ${options}
+    <option value="${SETTINGS_OPTION}" ${inSettings ? 'selected' : ''}>⚙ Settings &amp; Projects</option>
+  </select>`
+}
+
+/** Every file stored under a project's folder — draft and public alike. */
+async function listProjectFilePaths(projectName) {
+  const root = `projects/${projectName}`
+  const url = '/feps/read_user_file_tree/' + encodeURIComponent(freezrMeta.appName)
+  const result = await freezr.apiRequest('POST', url, {
+    subPath: root,
+    readSubFolders: true,
+    maxFiles: 8000,
+    maxDepth: 6,
+    includeMetadata: false
+  })
+  return collectScopedTreeFilePaths(Array.isArray(result?.tree) ? result.tree : [], root)
+}
+
+/**
+ * Delete a project outright: un-share and remove every file under its folder,
+ * then its chat history, then the row itself.
+ *
+ * Files go first on purpose. If this fails half way the row survives, so the
+ * project is still listed and the delete can be retried; dropping the row first
+ * would strand the files with nothing pointing at them.
+ */
+async function deleteProject(name, onProgress) {
+  const warnings = []
+  let paths = []
+  try {
+    paths = await listProjectFilePaths(name)
+  } catch (e) {
+    throw new Error('Could not list the project files: ' + (e.message || String(e)))
+  }
+
+  for (let i = 0; i < paths.length; i++) {
+    const full = paths[i]
+    if (onProgress) onProgress(`Deleting ${i + 1}/${paths.length}: ${full.split('/').pop()}`)
+    // A public copy may still be shared; un-share before deleting so no public
+    // record is left pointing at a file that no longer exists.
+    if (full.startsWith(`projects/${name}/public/`)) {
+      try { await unpublishSingleFile(full) } catch (_) {}
+    }
+    try {
+      await freezr.deleteFile(full)
+    } catch (e) {
+      warnings.push(`${full}: ${e.message || String(e)}`)
+    }
+  }
+
+  if (onProgress) onProgress('Deleting chat history…')
+  try {
+    await freezr.delete('chat_history', { project_name: name })
+  } catch (e) {
+    warnings.push('chat history: ' + (e.message || String(e)))
+  }
+
+  if (onProgress) onProgress('Removing the project…')
+  await freezr.delete('projects', { name })
+
+  forgetProject(name)
+  return { deleted: paths.length, warnings }
+}
+
 async function render() {
   const root = document.getElementById('orbit-root')
   if (!root) return
+
+  if (state.view === 'settings') return renderSettingsView(root)
 
   // Permissions come from the cached state.permissions; they're loaded once
   // in initOrbit() and refreshed explicitly via reloadPermissions().
@@ -1501,10 +1749,7 @@ async function render() {
         ${sessionBanner}
         <div class="orbit-left-toolbar">
           <div class="globe-toolbar${state.chatBusy ? '' : ' orbit-globe-idle'}"><div class="sphere"></div><div class="orbit-ring"><div class="orbit-dot"></div></div></div>
-          <select id="orbit-project-select" class="orbit-select">
-            ${state.projects.map((p) => `<option value="${p.name}" ${proj && p.name === proj.name ? 'selected' : ''}>${p.display_name || p.name}</option>`).join('')}
-            <option value="__new_project__">+ New project…</option>
-          </select>
+          ${projectSelectHtml()}
         </div>
         <nav class="orbit-tabs">
           <button type="button" data-left-tab="chat" class="${state.leftTab === 'chat' ? 'active' : ''}">Chat</button>
@@ -2603,7 +2848,302 @@ async function renderLeftPanel(opts = {}) {
         handleFiles([...e.dataTransfer.files])
       })
     }
+
   }
+
+}
+
+/**
+ * Settings & Projects — a whole view, not a tab.
+ *
+ * Everything here acts on projects rather than inside one, so it deliberately
+ * replaces the workspace: no Chat/Pages/Files tabs, no preview pane. That is
+ * what keeps "delete this project" from ever sitting a click away from "edit
+ * this page".
+ */
+async function renderSettingsView(root) {
+  const { canLlm } = state.permissions
+  const busy = state.transferBusy
+
+  const projectRow = (p) => {
+    const isCurrent = state.currentProject?.name === p.name
+    return `
+      <li class="orbit-proj-row${isCurrent ? ' is-current' : ''}">
+        <button type="button" class="orbit-link orbit-proj-open" data-open-project="${escapeHtml(p.name)}" ${busy ? 'disabled' : ''}>
+          <span class="orbit-proj-name">${escapeHtml(p.display_name || p.name)}</span>
+          <span class="orbit-proj-id">${escapeHtml(p.name)}</span>
+        </button>
+        <button type="button" class="orbit-btn-icon orbit-btn-danger orbit-proj-delete"
+                data-delete-project="${escapeHtml(p.name)}" title="Delete project" ${busy ? 'disabled' : ''}>&#128465;</button>
+      </li>`
+  }
+
+  root.innerHTML = `
+    <div class="orbit-body orbit-body--settings">
+      <div class="orbit-settings-page">
+        <div class="orbit-left-toolbar">
+          <div class="globe-toolbar orbit-globe-idle"><div class="sphere"></div><div class="orbit-ring"><div class="orbit-dot"></div></div></div>
+          ${projectSelectHtml()}
+        </div>
+
+        <div class="orbit-settings-scroll">
+          <h3 class="orbit-settings-page-title">Settings &amp; Projects</h3>
+
+          <h4 class="orbit-settings-heading">Model</h4>
+          <div id="orbit-llm-settings">${renderLlmSettings(state.llm, canLlm)}</div>
+
+          <h4 class="orbit-settings-heading">New project</h4>
+          <div class="orbit-settings-section">
+            <div class="orbit-settings-body">
+              <div class="orbit-newproj-row">
+                <input type="text" id="orbit-newproj-name" class="orbit-settings-input"
+                       placeholder="project-id" autocomplete="off" spellcheck="false" ${busy ? 'disabled' : ''} />
+                <button type="button" class="orbit-btn orbit-btn-sm" id="orbit-newproj-launch" ${busy ? 'disabled' : ''}>Launch project</button>
+              </div>
+              <p class="orbit-settings-note" id="orbit-newproj-msg">Letters, numbers, hyphens and underscores.</p>
+            </div>
+          </div>
+
+          <h4 class="orbit-settings-heading">Projects</h4>
+          <div class="orbit-settings-section">
+            <ul class="orbit-proj-list">
+              ${state.projects.length
+                ? state.projects.map(projectRow).join('')
+                : '<li class="orbit-muted orbit-proj-empty">No projects yet.</li>'}
+            </ul>
+          </div>
+
+          <h4 class="orbit-settings-heading">Import &amp; export</h4>
+          <div class="orbit-settings-section">
+            <div class="orbit-settings-body">
+              <button type="button" class="orbit-btn orbit-btn-secondary orbit-btn-sm" id="orbit-export-project" ${(!state.currentProject || busy) ? 'disabled' : ''}>
+                Export ${state.currentProject ? escapeHtml(state.currentProject.name) : 'current project'}…
+              </button>
+              <label class="orbit-import-label ${busy ? 'is-disabled' : ''}">
+                <input type="file" accept="application/json,.json" id="orbit-import-input" class="orbit-upload-input" ${busy ? 'disabled' : ''} />
+                <span class="orbit-btn orbit-btn-secondary orbit-btn-sm">Import a project…</span>
+              </label>
+              <p class="orbit-settings-note">
+                An export is a single <code>.json</code> file holding the project's pages and every file in its folder.
+                Importing overwrites files of the same name in a project of the same name; files not in the bundle are left alone.
+              </p>
+              <div id="orbit-transfer-status" class="orbit-upload-status">${escapeHtml(state.transferStatus || '')}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`
+
+  bindChrome()
+  bindSettingsView()
+}
+
+function bindSettingsView() {
+  const rerender = () => render()
+  const setStatus = (msg) => {
+    state.transferStatus = msg || ''
+    const el = document.getElementById('orbit-transfer-status')
+    if (el) el.textContent = state.transferStatus
+  }
+  const runBusy = async (fn) => {
+    state.transferBusy = true
+    await render()
+    try {
+      await fn()
+    } finally {
+      state.transferBusy = false
+      await render()
+    }
+  }
+
+  bindLlmSettings(document.getElementById('orbit-llm-settings'), state.llm, rerender)
+  if (state.permissions.canLlm && !state.llm.providers && !state.llm.loading) {
+    loadLlmProviders(state.llm).then((changed) => {
+      if (changed && state.view === 'settings') render()
+    })
+  }
+
+  // ---- new project: inline field, no dialog ----
+  const nameInput = document.getElementById('orbit-newproj-name')
+  const msgEl = document.getElementById('orbit-newproj-msg')
+  const launch = async () => {
+    const slug = (nameInput?.value || '').trim()
+    const say = (text, isError) => {
+      if (!msgEl) return
+      msgEl.textContent = text
+      msgEl.classList.toggle('orbit-settings-note--error', !!isError)
+    }
+    if (!slug) return say('Enter a project id first.', true)
+    if (!isValidProjectName(slug)) {
+      return say('Use letters, numbers, hyphens and underscores only — no spaces.', true)
+    }
+    if (state.projects.some((p) => p.name === slug)) {
+      return say(`"${slug}" already exists. Pick another id.`, true)
+    }
+    await runBusy(async () => {
+      setStatus('Creating project…')
+      try {
+        await createProject(slug) // switches to it, which leaves this view
+      } catch (e) {
+        console.error('Orbit: could not create project', e)
+        setStatus('')
+        say('Could not create project: ' + (e.message || String(e)), true)
+      }
+    })
+  }
+  document.getElementById('orbit-newproj-launch')?.addEventListener('click', launch)
+  nameInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); launch() }
+  })
+
+  // ---- project list ----
+  document.querySelectorAll('[data-open-project]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      await switchToProject(btn.getAttribute('data-open-project'))
+    })
+  })
+
+  document.querySelectorAll('[data-delete-project]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const name = btn.getAttribute('data-delete-project')
+      // Typing the name is the whole safeguard here: this deletes every file in
+      // the project, published copies included, and cannot be undone.
+      const typed = window.prompt(
+        `Delete the project "${name}"?\n\n` +
+        'This permanently removes ALL of its files — drafts, published copies and chat history. ' +
+        'It cannot be undone.\n\n' +
+        `Type the project id to confirm:`
+      )
+      if (typed == null) return
+      if (typed.trim() !== name) {
+        window.alert('That did not match the project id. Nothing was deleted.')
+        return
+      }
+      await runBusy(async () => {
+        try {
+          const { deleted, warnings } = await deleteProject(name, setStatus)
+          await loadProjects()
+          if (state.currentProject?.name === name) {
+            state.currentProject = state.projects[0] || null
+            state.activePageIndex = 0
+            state.currentFilePath = null
+            state.fileList = []
+            if (state.currentProject) rememberProject(state.currentProject.name)
+          }
+          setStatus(`Deleted "${name}" (${deleted} file${deleted === 1 ? '' : 's'}).`)
+          if (warnings.length) {
+            window.alert(
+              `"${name}" was removed, but ${warnings.length} file(s) could not be deleted:\n\n` +
+              warnings.join('\n')
+            )
+          }
+        } catch (e) {
+          console.error('Orbit: delete project failed', e)
+          setStatus('')
+          window.alert('Could not delete "' + name + '": ' + (e.message || String(e)))
+        }
+      })
+    })
+  })
+
+  // ---- export ----
+  document.getElementById('orbit-export-project')?.addEventListener('click', async () => {
+    const proj = state.currentProject
+    if (!proj) return
+    await runBusy(async () => {
+      try {
+        // The export reads the folder listing, which may be stale if the user
+        // came straight here from another project.
+        await refreshFileList()
+        const { bundle, warnings } = await buildProjectBundle({
+          project: proj,
+          fileRels: draftRelFilePaths(),
+          fetchDraftBlob: (rel) => fetchUserBlob(`${draftBasePath()}/${rel}`),
+          onProgress: setStatus
+        })
+        const stamp = new Date().toISOString().slice(0, 10)
+        downloadBundle(bundle, `${proj.name}-${stamp}.orbit.json`)
+        setStatus(`Exported ${bundle.files.length} file${bundle.files.length === 1 ? '' : 's'} (${approxBundleSize(bundle)}).`)
+        if (warnings.length) {
+          window.alert(
+            'The export finished, but ' + warnings.length + ' file' + (warnings.length > 1 ? 's' : '') +
+            ' could not be read and were left out:\n\n' + warnings.join('\n')
+          )
+        }
+      } catch (e) {
+        console.error('Orbit: export failed', e)
+        setStatus('')
+        window.alert('Export failed: ' + (e.message || String(e)))
+      }
+    })
+  })
+
+  // ---- import ----
+  document.getElementById('orbit-import-input')?.addEventListener('change', async (ev) => {
+    const file = ev.target.files?.[0]
+    ev.target.value = '' // so re-picking the same file fires change again
+    if (!file) return
+
+    let bundle
+    try {
+      bundle = validateBundle(JSON.parse(await file.text()))
+    } catch (e) {
+      window.alert('Could not read that bundle.\n\n' + (e.message || String(e)))
+      return
+    }
+
+    const name = bundle.project.name
+    const exists = state.projects.some((p) => p.name === name)
+    const ok = window.confirm(
+      exists
+        ? `A project called "${name}" already exists.\n\n` +
+          `Import will overwrite its pages and write ${bundle.files.length} file(s) over the ones in its folder. ` +
+          'Files not in the bundle are left in place.\n\nContinue?'
+        : `Import "${name}" — ${bundle.files.length} file(s)?`
+    )
+    if (!ok) return
+
+    await runBusy(async () => {
+      try {
+        const importingCurrent = exists && state.currentProject?.name === name
+        if (importingCurrent) await refreshFileList()
+        const result = await applyProjectBundle({
+          bundle,
+          existingRels: importingCurrent ? draftRelFilePaths() : [],
+          uploadText,
+          uploadFile,
+          projectExists: exists,
+          onProgress: setStatus,
+          saveProjectRow: async (row, alreadyExists) => {
+            const fields = { ...row }
+            delete fields.name
+            if (alreadyExists) {
+              await freezr.updateFields('projects', { name: row.name }, fields)
+            } else {
+              await freezr.create('projects', row, {})
+            }
+          }
+        })
+        await loadProjects()
+
+        let msg = `Imported "${result.name}" — ${result.written} file(s) written.`
+        if (result.warnings.length) {
+          msg += `\n\n${result.warnings.length} file(s) failed:\n` + result.warnings.join('\n')
+        }
+        if (result.leftovers.length) {
+          msg += `\n\n${result.leftovers.length} file(s) already in the folder were not in the bundle and were left in place:\n` +
+            result.leftovers.join('\n') + '\n\nDelete them from the Files tab if they are no longer wanted.'
+        }
+        setStatus(`Imported "${result.name}".`)
+        window.alert(msg)
+        await switchToProject(name) // opens the imported project
+      } catch (e) {
+        console.error('Orbit: import failed', e)
+        setStatus('')
+        window.alert('Import failed: ' + (e.message || String(e)))
+      }
+    })
+  })
 }
 
 function escapeHtml(s) {
@@ -2779,11 +3319,12 @@ async function handleChatSend(canLlm, forceNewThread = false) {
     // Always gather files for the thread's original page, not the current view.
     const page = threadPage
     const fileContents = await gatherPageFileContents(page)
-    const projectFileList = state.fileList.map((f) => f.replace(`${draftBasePath()}/`, ''))
+    const projectFileList = draftRelFilePaths()
 
     const out = await sendOrbitChatMessage({
       userMessage: text,
       chatHistory,
+      llmOptions: llmAskOptions(state.llm),
       project: state.currentProject,
       page,
       fileContents,
@@ -2949,61 +3490,12 @@ function bindChrome() {
         sel.value = state.currentProject?.name || ''
         return
       }
-      if (name === '__new_project__') {
-        sel.value = state.currentProject?.name || ''
-        const slug = window.prompt('Project id (letters, numbers, hyphens):', 'my-site')
-        if (!slug || !/^[-a-z0-9]+$/i.test(slug)) return
-        if (state.projects.some((p) => p.name === slug)) {
-          window.alert('That id already exists.')
-          return
-        }
-        const base = `projects/${slug}/draft`
-        await uploadText(`${base}/index.html`, starterIndexHtml, 'text/html')
-        await uploadText(`${base}/shared/common.css`, starterCss, 'text/css')
-        await freezr.create(
-          'projects',
-          {
-            name: slug,
-            display_name: slug,
-            description: '',
-            published: false,
-            public_url: null,
-            entry_page: 'index',
-            pages: [
-              {
-                name: 'index',
-                html_file: 'index.html',
-                css_files: ['shared/common.css'],
-                js_files: [],
-                published: false,
-                public_url: null
-              }
-            ]
-          },
-          {}
-        )
-        await loadProjects()
-        state.currentProject = state.projects.find((p) => p.name === slug)
-        state.activePageIndex = 0
-        state.expandedFolder = null
-        state.rightMode = 'preview'
-        await refreshFileList()
-        state.currentFilePath = `${draftBasePath()}/${getActivePage().html_file}`
-        await loadChatHistoryForProject()
+      if (name === SETTINGS_OPTION) {
+        state.view = 'settings'
         await render()
         return
       }
-      state.currentProject = state.projects.find((p) => p.name === name) || null
-      state.activePageIndex = 0
-      state.expandedFolder = null
-      if (state.currentProject) {
-        await refreshFileList()
-        const pg = getActivePage()
-        state.currentFilePath = pg ? `${draftBasePath()}/${pg.html_file}` : null
-        await loadChatHistoryForProject()
-      }
-      state.rightMode = 'preview'
-      await render()
+      await switchToProject(name)
     })
   }
 

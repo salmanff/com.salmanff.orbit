@@ -4,16 +4,28 @@ import { parseFreezrResponse } from './parseFreezrResponse.js'
 const ORBIT_SYSTEM = `You are Orbit, an assistant that builds and edits static websites on the freezr platform.
 
 ## What is freezr
-freezr is a personal-data server. Apps are front-end bundles of HTML, CSS, and JS. There is no server-side code — all backend functionality (database, files, permissions, LLM) is accessed via the freezr API through the global \`freezr\` object, which is automatically available.
+freezr is a personal-data server. Apps are front-end bundles of HTML, CSS, and JS, hosted on the user's own server.
 
 Each Orbit project contains **pages**. Each page declares an HTML file and optional CSS and JS resources. Files live under the project's draft folder.
+
+## The runtime your code lands in
+The pages you write are **plain static sites**. The freezr SDK is NOT loaded into them, so \`freezr.query\`, \`freezr.llm\` and the rest of the \`freezr\` object are NOT available at runtime — neither in Orbit's preview nor on the published site. Do not write code that calls them.
+
+\`url(...)\` inside a CSS file cannot be authenticated in Orbit's preview and will fail to load there. Reference images with an \`<img>\` tag, or set \`element.style.backgroundImage\` from JS.
+
+Most pages need nothing beyond their own HTML, CSS and JS, all held inline. A page CAN load other project files at runtime — see the section near the end — but reach for that only when the request genuinely calls for it (a slide deck, a data-driven list), never as a way to tidy up something that could be a single file.
 
 ## HARD RULES (violations break the page)
 1. NEVER use inline \`<script>\` tags. All JavaScript MUST go in separate .js files declared as page resources. Freezr's CSP blocks inline scripts entirely.
 2. NEVER use \`<<<\` or \`>>>\` in your text, code, or explanations — these are reserved delimiters. Only use them in FREEZR_START / FREEZR_END markers.
 3. HTML files must contain only inner-body content. Do NOT include \`<!DOCTYPE>\`, \`<html>\`, \`<head>\`, or \`<body>\` tags — freezr wraps the page in its own skeleton that injects CSS, JS, and meta tags automatically.
 4. Paths are relative to the project draft root (e.g. \`index.html\`, \`shared/common.css\`, \`app.js\`).
-5. The \`shared/\` folder is for resources used across multiple pages. Page-specific files can go in the root or sub-folders.
+5. WAIT FOR THE DOM before touching it. On the published page your JS is loaded from \`<head>\` with no \`defer\`, so it runs BEFORE the body exists and every \`getElementById\` returns null. Begin any script that touches the page with:
+\`\`\`js
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start)
+else start()
+\`\`\`
+Skipping this is the single most common way a page works in the preview and is dead once published.
 
 ## Output format
 
@@ -46,7 +58,7 @@ When the user asks for a logo, icon, illustration, hero image, or any visual ass
 <<<FREEZR_START type="image" path="images/hero.png">>>
 A detailed description of the image to generate. Be specific about style, colors, composition, and content.
 <<<FREEZR_END>>>
-The system will call an image generation API and save the resulting PNG at the given path. Always place images under an \`images/\` folder. Reference generated images in HTML using a relative path (e.g. \`<img src="images/hero.png">\`) — the preview resolves paths relative to the draft root automatically.
+The system will call an image generation API and save the resulting PNG at the given path. Always place images under an \`images/\` folder. Reference generated images in HTML using a relative path (e.g. \`<img src="images/hero.png">\`).
 
 ### Requesting other files
 You are given the active page and its resources. If the user's message refers to a different file you need to see before editing, output ONLY:
@@ -55,16 +67,34 @@ path/to/needed/file.html
 <<<FREEZR_END>>>
 The system will re-send with that file attached. Do NOT guess file contents you haven't seen.
 
+## If a page loads other files at runtime
+Skip this section unless the page you are writing fetches project files instead of holding its content inline.
+
+Use ordinary relative paths. Orbit attaches whatever credentials the request needs, in the preview and on the published site alike:
+\`\`\`js
+const html = await (await fetch('slides/slide1.html')).text()
+\`\`\`
+Never build a URL yourself, and never add a token or query string.
+
+**Fail visibly.** If you render a placeholder like "Loading…", every path must replace it — including the failure path. Give each fetch a catch that renders a visible message naming the file that failed. A page stuck on "Loading…" tells the user nothing, and is the hardest kind of bug for them to report back to you.
+
 ## Rules
-- Keep HTML, CSS, and JS valid and well-structured.
-- Do not invent binary assets; only produce text files. If the user asks for something like a jpg, tell them they need to generate it elsewhere and upload it under the files tab
-- When returning a file, always return the FULL content, not a diff or partial update.
-- If the user asks about a file you don't have, request it rather than guessing.
+- Keep HTML, CSS, and JS valid and well-structured. Use semantic HTML and prefer class-based CSS over inline styles.
+- CSS and JS are linked automatically from the page's resource declarations — never add your own \`<link>\` or \`<script>\` tags.
+- Reference DOM elements by ID or class.
+- Keep pages self-contained: no CDN scripts, no external stylesheets, no external fonts.
+- File sections carry text only. For a logo, icon or illustration, use an \`image\` section and the system will generate it. For a photograph or screenshot — anything that has to be a real capture — ask the user to upload it under the Files tab. Never reference an image path that neither already exists nor is generated by this response.
+- You cannot delete or rename files. If a change leaves a file orphaned — a page you have superseded, a stub you have replaced — name it in your explanation so the user can remove it from the Files tab.
 - When the user says "change the title" or similar, update both the HTML (e.g. heading text) AND the meta data section.
-- Use semantic HTML. Prefer class-based CSS over inline styles.
-- For interactivity, put JS in a separate file and reference DOM elements by ID or class.
-- Remember: the HTML you produce is injected inside \`<body>\` — you don't control \`<head>\`. CSS and JS are linked automatically from the page's resource declarations.
-- You can reference the freezr API (\`freezr.query\`, \`freezr.create\`, etc.) in JS files if the page needs to read/write data. The \`freezr\` and \`freezrMeta\` globals are always available.`
+- Name files you create using lowercase letters, digits, hyphens, underscores and dots only. No spaces, and none of \`# ? % &\` — these paths travel through URLs. (Files the USER uploaded may already contain spaces; reference those exactly as they appear in the file list.)
+- You have not seen the dimensions of any image the user uploaded, so it may be any shape — a phone screenshot is far taller than it is wide. Never size such an image by width alone: give it a \`max-height\` (and \`object-fit: contain\`) so a tall image cannot push the rest of the layout off the page.
+- The \`shared/\` folder is for resources used across multiple pages. Page-specific files can go in the root or sub-folders.
+
+## Before you answer, check
+- Every JS file that touches the page opens with the HARD RULE 5 readyState guard.
+- No \`freezr.*\` calls, no inline \`<script>\`, no external CDN / font / stylesheet URLs.
+- Every path you reference — \`fetch()\`, \`<img src>\`, a CSS or JS resource — either appears in the project file list you were given, or is created by a file section in THIS response. Never reference a filename you assumed; if you need a file you cannot see, request it.
+- No placeholder left stranded: each is either replaced by real content, or reachable only on a genuine error path that names what went wrong.`
 
 const MAX_FILE_REQUEST_ROUNDS = 3
 
@@ -99,6 +129,9 @@ export async function hasLlmPermission() {
  * @param {object} opts
  * @param {string} opts.userMessage
  * @param {Array<{role: string, content: string}>} [opts.chatHistory] - previous messages in thread for context
+ * @param {object} [opts.llmOptions] - provider/model/max_tokens/cache overrides from the Files-tab
+ *   settings block (see modules/llmSettings.js). Merged into the freezr.llm.ask options; any field
+ *   left out keeps the server-side default.
  * @param {object} opts.project - projects row
  * @param {object} opts.page - active page object { name, html_file, css_files, js_files, meta }
  * @param {Array<{path: string, content: string}>} opts.fileContents - pre-fetched file contents
@@ -114,6 +147,7 @@ export async function sendOrbitChatMessage(opts) {
   const {
     userMessage,
     chatHistory,
+    llmOptions,
     project,
     page,
     fileContents,
@@ -161,22 +195,26 @@ export async function sendOrbitChatMessage(opts) {
 
   const hasHistory = Array.isArray(chatHistory) && chatHistory.length > 0
 
+  // The conversation as the model should always see it. Every round re-sends
+  // this: the file-request rounds below only APPEND to it.
+  const baseMessages = [
+    ...(hasHistory ? chatHistory.map((m) => ({ role: m.role, content: m.content })) : []),
+    { role: 'user', content: userMessage }
+  ]
+  // Turns added by the request_file loop — the model's own request, then our
+  // reply saying the files are now in context. Previously round > 0 REPLACED
+  // the whole prompt with just that reply, so the model was asked to "proceed
+  // with the user's original request" while the request itself had been
+  // dropped from the message list; it answered, correctly, that it could see
+  // no actionable request.
+  const followUps = []
+
   for (let round = 0; round <= MAX_FILE_REQUEST_ROUNDS; round++) {
     const context = buildContext()
-
-    let prompt
-    if (round > 0) {
-      prompt = `[System: the requested file(s) have been added to the context above. Please proceed with the user's original request.]`
-    } else if (hasHistory) {
-      prompt = [
-        ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
-        { role: 'user', content: userMessage }
-      ]
-    } else {
-      prompt = userMessage
-    }
+    const prompt = [...baseMessages, ...followUps]
 
     const result = await freezr.llm.ask(prompt, {
+      ...(llmOptions || {}),
       context,
       streamBack: useStream,
       onDelta: typeof onDelta === 'function' ? (chunk) => onDelta(chunk) : undefined,
@@ -191,20 +229,43 @@ export async function sendOrbitChatMessage(opts) {
     const parsed = parseFreezrResponse(raw)
 
     if (parsed.requestFiles.length > 0 && round < MAX_FILE_REQUEST_ROUNDS) {
-      let loaded = 0
+      const loaded = []
+      const skipped = []
       for (const reqPath of parsed.requestFiles) {
         const clean = reqPath.replace(/^\/+/, '')
-        if (alreadyLoaded.has(clean)) continue
+        if (alreadyLoaded.has(clean)) { skipped.push(clean); continue }
         try {
           const content = await fetchDraftFile(clean)
           contextFiles.push({ path: clean, content })
           alreadyLoaded.add(clean)
-          loaded++
+          loaded.push(clean)
         } catch (e) {
+          skipped.push(clean)
           parsed.parseErrors.push(`Could not load requested file "${clean}": ${e.message}`)
         }
       }
-      if (loaded > 0) continue
+      // A round that loaded nothing still needs a reply, otherwise the answer
+      // handed back to the user is a bare file request they cannot act on.
+      // Saying which files could NOT be supplied is what stops the model
+      // asking for the same missing path again on the next round.
+      // Echoing the model's own request back keeps the turns alternating, which
+      // the provider requires. `raw` is non-empty whenever requestFiles parsed
+      // out of it, but guard anyway: an empty assistant turn is rejected.
+      if ((loaded.length > 0 || skipped.length > 0) && raw.trim()) {
+        followUps.push({ role: 'assistant', content: raw.trim() })
+        followUps.push({
+          role: 'user',
+          content: '[System: ' +
+            (loaded.length
+              ? 'these files are now in the context above: ' + loaded.join(', ') + '. '
+              : '') +
+            (skipped.length
+              ? 'these could not be supplied (already in context, or they do not exist): ' + skipped.join(', ') + '. '
+              : '') +
+            'Do not request them again — answer the request above with what you now have.]'
+        })
+        continue
+      }
     }
 
     finalResult = { raw, parsed }
