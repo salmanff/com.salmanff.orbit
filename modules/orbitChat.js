@@ -96,9 +96,37 @@ Never build a URL yourself, and never add a token or query string.
 - Every path you reference — \`fetch()\`, \`<img src>\`, a CSS or JS resource — either appears in the project file list you were given, or is created by a file section in THIS response. Never reference a filename you assumed; if you need a file you cannot see, request it.
 - No placeholder left stranded: each is either replaced by real content, or reachable only on a genuine error path that names what went wrong.`
 
+/** Appended to ORBIT_SYSTEM only for slide-show projects. */
+const SLIDESHOW_SYSTEM = `
+
+## This project is a SLIDE SHOW
+A slide show has two parts. Keep them apart.
+
+1. The DECK (the template): the deck page's HTML plus its CSS and JS. It holds the frame every slide sits in — the stage, the navigation, fonts and colours — and the runtime script that loads the slides. Change it only when the user asks for something that affects the whole presentation (a theme, a transition, a new control).
+
+2. The SLIDES: one HTML file per slide, usually under "slides/". A slide file is an HTML FRAGMENT — just the content of one slide. The deck runtime fetches it and places it inside <section class="slide" data-slide-id="ID">, so:
+   - no <html>, <head>, <body>, <link> or <script> tags in a slide — scripts inside a fragment never run;
+   - no <style> blocks or style attributes for anything reusable: put slide styles in the deck CSS, scoped to a class on the slide's root element (e.g. <div class="s-roadmap"> in the slide and .s-roadmap { … } in the CSS), so one slide cannot restyle another;
+   - size text and spacing in em, and avoid px, vw and vh inside slides. The stage FILLS THE SCREEN — a phone, a laptop and a projector are all different shapes — so a slide is NOT designed to a fixed aspect ratio. Instead the deck defines a design box (--deck-design-width x --deck-design-height em in deck.css, 50 x 28 by default) and scales the stage font-size so that box always fits. Write each slide to sit comfortably inside roughly 50em wide by 28em tall and it will be proportional everywhere;
+   - paths inside a slide (images etc.) are relative to the PROJECT ROOT, not to slides/ — write images/chart.png, not ../images/chart.png;
+   - a slide must fit the stage without scrolling. Content much taller than the design box may be clipped on a short window — if it will not fit, say so and suggest splitting it into two slides.
+
+The deck's SHAPE is the user's to choose, and changing it is a normal deck-level edit — not something to refuse. If they ask for classic fixed-ratio slides, add the class "is-framed" to the deck element in the deck HTML and set --deck-aspect in the deck CSS (16 / 9, 4 / 3, 1 / 1, 9 / 16 …); the runtime measures the stage, so no JS change is needed. A taller or wider design box, a different maximum line length (--deck-content-width) or a larger minimum text size (--deck-min-font) are likewise just custom properties in the deck CSS.
+
+When the user says "this slide", "here" or similar, they mean the ACTIVE SLIDE named in the project context. Edit only that slide's file unless they ask for more. If a request clearly needs the deck (every slide, the theme, navigation), edit the deck and say so.
+
+To add a slide, output a NEW file under slides/ with a name not already in the file list (e.g. slides/slide-7.html). Orbit inserts new slides right after the active slide automatically. You cannot delete, reorder or retitle slides — tell the user to do that in the Slides tab.
+
+NEVER write slides.json. Orbit owns it and rewrites it from the Slides tab. It looks like {"slides":[{"id":"s1","file":"slides/slide-1.html","title":"Intro"}]}, in presentation order.
+
+If you change the deck's JavaScript, keep this contract, or the Slides tab and the preview stop working:
+   - read slides.json (relative path), fetch each slide's "file" (relative path) and wrap it in <section class="slide" data-slide-id="ID">;
+   - start at the slide named by <meta name="orbit-start-slide" content="N"> (1-based — Orbit's preview injects it so the user sees the slide they are working on), else by the URL hash #N, else slide 1;
+   - fail visibly: a slide that fails to load shows an error naming its file instead of leaving the deck stuck on "Loading…".`
+
 const MAX_FILE_REQUEST_ROUNDS = 3
 
-function mimeForPath(rel) {
+export function mimeForPath(rel) {
   if (/\.html?$/i.test(rel)) return 'text/html'
   if (/\.css$/i.test(rel)) return 'text/css'
   if (/\.js$/i.test(rel)) return 'text/javascript'
@@ -157,7 +185,8 @@ export async function sendOrbitChatMessage(opts) {
     fetchDraftFile,
     onDelta,
     onThinking,
-    onImageStatus
+    onImageStatus,
+    slideshow
   } = opts
 
   const meta = page?.meta || {}
@@ -175,15 +204,33 @@ export async function sendOrbitChatMessage(opts) {
   let contextFiles = [...(fileContents || [])]
   const alreadyLoaded = new Set(contextFiles.map((f) => f.path))
 
+  // Slide shows: which slides exist, in order, and which one the user is on.
+  const slideList = slideshow ? (slideshow.slides || []) : []
+  const activeSlideIdx = slideshow ? slideList.findIndex((s) => s.id === slideshow.activeSlideId) : -1
+  const slideshowContext = () => {
+    if (!slideshow) return ''
+    const lines = slideList.map((s, i) =>
+      `  ${i + 1}. ${s.file}${s.title ? ` — "${s.title}"` : ''}${i === activeSlideIdx ? '   (ACTIVE SLIDE)' : ''}`)
+    return (
+      `\n\nSlide show deck page: ${page?.html_file || 'index.html'} (template css=[${(page?.css_files || []).join(', ')}] js=[${(page?.js_files || []).join(', ')}])` +
+      `\nSlides in presentation order:\n${lines.length ? lines.join('\n') : '  (none yet)'}` +
+      (activeSlideIdx >= 0
+        ? `\nActive slide: slide ${activeSlideIdx + 1}, ${slideList[activeSlideIdx].file} — its contents are included below.`
+        : '\nNo slide is active.')
+    )
+  }
+
   const buildContext = () => {
     return (
       ORBIT_SYSTEM +
+      (slideshow ? SLIDESHOW_SYSTEM : '') +
       `\n\n## Current project context` +
       `\nProject: ${project.name} (${project.display_name || project.name})` +
       `\nActive page: "${page?.name || 'index'}" (html: ${page?.html_file || 'index.html'})` +
       `\nPage resources: css=[${(page?.css_files || []).join(', ')}] js=[${(page?.js_files || []).join(', ')}]` +
       `\nPage meta: ${metaStr}` +
       `\n\nAll pages in project:\n${pagesOverview}` +
+      slideshowContext() +
       `\n\nAll files in project draft folder:\n${fileMapStr}` +
       `\n\n## File contents provided\n\n${buildFileContext(contextFiles)}`
     )
@@ -279,6 +326,10 @@ export async function sendOrbitChatMessage(opts) {
   const { parsed } = finalResult
   const changed = []
   const newResources = []
+  // Pre-edit snapshots for Undo (see performUndo in orbitMain.js) — captured here, right before
+  // each write, because this is the one place that still knows what was on disk a moment ago.
+  const undoFiles = []
+  const undoImages = []
 
   const existingPaths = new Set([
     page?.html_file,
@@ -293,6 +344,15 @@ export async function sendOrbitChatMessage(opts) {
       continue
     }
     const full = `projects/${project.name}/draft/${rel}`
+    let prevContent = null
+    let existed = false
+    try {
+      prevContent = await fetchDraftFile(rel)
+      existed = true
+    } catch (_) {
+      existed = false
+    }
+    undoFiles.push({ path: rel, prevContent, existed })
     await uploadText(full, f.content, mimeForPath(rel))
     changed.push(rel)
 
@@ -321,6 +381,9 @@ export async function sendOrbitChatMessage(opts) {
           const fileName = rel.split('/').pop() || 'image.png'
           const file = new File([blob], fileName, { type: 'image/png' })
           const full = `projects/${project.name}/draft/${rel}`
+          let existedBefore = false
+          try { await fetchDraftFile(rel); existedBefore = true } catch (_) { existedBefore = false }
+          undoImages.push({ path: rel, existed: existedBefore })
           await uploadFile(full, file)
           changed.push(rel)
           if (onImageStatus) onImageStatus({ path: rel, status: 'done' })
@@ -341,6 +404,7 @@ export async function sendOrbitChatMessage(opts) {
     parsed,
     filesChanged: changed,
     newResources,
+    undo: { files: undoFiles, images: undoImages },
     explanation: parsed.explanation || finalResult.raw,
     metaUpdate: parsed.meta || null
   }

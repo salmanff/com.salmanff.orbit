@@ -14,6 +14,8 @@ Orbit lets you create, edit, and publish simple multi-page static sites right fr
 
 
 
+**Slide shows:** From Settings & Projects you can launch a new project as a "Slide show" (or convert an existing multi-page project into one). A slide show is a deck template — a shared frame, styling and navigation — plus an ordered list of slides, each a small HTML fragment. Use the Slides tab to add, duplicate, reorder, rename and delete slides, and to publish the whole presentation in one go. Chat understands slide shows too: it edits the active slide, the deck, or adds new slides, keeping `slides.json` in sync automatically.
+
 Grant LLM permissions so you can chat with Orbit let it build your pages. 
 
 Published sites can be shared via the public page link after publishing. All your draft changes remain private until you click “Publish”.
@@ -46,6 +48,7 @@ Published sites can be shared via the public page link after publishing. All you
 
 - `orbit.js` — bootstrap (dynamic `import` of modules).
 - `modules/orbitMain.js` — UI, projects, editor, preview, publish/unpublish, chat.
+- `modules/checkpoints.js` — durable project snapshots (taken automatically at the start of each new chat), restore/list/prune, surfaced in the Chat tab and Settings → Versions.
 - `modules/publishService.js` — declarative publish set, sync draft→public, `fileStructure` + `isHtmlMainPage` share.
 - `modules/orbitChat.js` / `modules/parseFreezrResponse.js` — LLM + file sections.
 - `modules/editorLoader.js` — CodeMirror 6 (same pattern as `info.freezr.creator`).

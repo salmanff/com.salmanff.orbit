@@ -70,9 +70,12 @@ export function isValidProjectName(name) {
  * @param {string[]} opts.fileRels - draft-relative paths to include
  * @param {(rel: string) => Promise<Blob>} opts.fetchDraftBlob
  * @param {(msg: string) => void} [opts.onProgress]
+ * @param {Array<object>} [opts.chatHistory] - chat_history rows for this project, when the user
+ *   opted in to "include chat"; stored on the bundle keyed so re-importing it is safe (see
+ *   chatDedupeKey)
  * @returns {Promise<{bundle: object, warnings: string[]}>}
  */
-export async function buildProjectBundle({ project, fileRels, fetchDraftBlob, onProgress }) {
+export async function buildProjectBundle({ project, fileRels, fetchDraftBlob, onProgress, chatHistory }) {
   if (!project?.name) throw new Error('No project to export')
   const files = []
   const warnings = []
@@ -99,22 +102,47 @@ export async function buildProjectBundle({ project, fileRels, fetchDraftBlob, on
   // the record and would be meaningless (or actively wrong) after an import.
   const { _id, _date_created, _date_modified, _accessibles, _owner, ...projectFields } = project
 
-  return {
-    bundle: {
-      format: BUNDLE_FORMAT,
-      version: BUNDLE_VERSION,
-      exportedAt: new Date().toISOString(),
-      project: {
-        ...projectFields,
-        // Publication state is specific to the server it was published from.
-        published: false,
-        public_url: null,
-        pages: (project.pages || []).map((p) => ({ ...p, published: false, public_url: null }))
-      },
-      files
+  const bundle = {
+    format: BUNDLE_FORMAT,
+    version: BUNDLE_VERSION,
+    exportedAt: new Date().toISOString(),
+    project: {
+      ...projectFields,
+      // Publication state is specific to the server it was published from.
+      published: false,
+      public_url: null,
+      pages: (project.pages || []).map((p) => ({ ...p, published: false, public_url: null }))
     },
-    warnings
+    files
   }
+
+  // Chat is opt-in (the caller only passes it when the user ticked "include chat") and is kept
+  // as plain field data, not freezr records — _id/_owner/etc belong to THIS server's copy and
+  // would be meaningless on another. chatDedupeKey() is what lets the SAME bundle be imported
+  // twice, or passed back and forth between two instances, without duplicating every message.
+  if (Array.isArray(chatHistory) && chatHistory.length) {
+    bundle.chatHistory = chatHistory.map((r) => ({
+      thread_id: r.thread_id || null,
+      role: r.role,
+      content: r.content || '',
+      timestamp: r.timestamp || r._date_modified || null,
+      active_page: r.active_page || '',
+      files_changed: Array.isArray(r.files_changed) ? r.files_changed : [],
+      thinking: r.thinking || null,
+      file_snippets: r.file_snippets || null
+    }))
+  }
+
+  return { bundle, warnings }
+}
+
+/**
+ * A stable identity for a chat_history record, independent of the server-assigned _id.
+ * Importing the same bundle twice, or passing one project back and forth between two
+ * instances, must not duplicate every message each time — this is the key that catches that.
+ */
+export function chatDedupeKey(rec) {
+  return [rec.thread_id || '', rec.timestamp || '', rec.role || ''].join('|')
 }
 
 /** Validate a parsed bundle, throwing a message worth showing the user. */
@@ -135,6 +163,9 @@ export function validateBundle(bundle) {
   if (unsafe.length) {
     throw new Error(`The bundle contains unsafe file paths (e.g. "${unsafe[0]?.path}"). Refusing to import.`)
   }
+  if (bundle.chatHistory !== undefined && !Array.isArray(bundle.chatHistory)) {
+    throw new Error('The bundle\'s chat history is not a list.')
+  }
   return bundle
 }
 
@@ -153,10 +184,15 @@ export function validateBundle(bundle) {
  * @param {(project: object, exists: boolean) => Promise<void>} opts.saveProjectRow
  * @param {boolean} opts.projectExists
  * @param {(msg: string) => void} [opts.onProgress]
- * @returns {Promise<{name: string, written: number, warnings: string[], leftovers: string[]}>}
+ * @param {Set<string>} [opts.existingChatKeys] - chatDedupeKey() of chat_history already on this
+ *   project, so re-importing the same bundle (or round-tripping it) does not duplicate messages
+ * @param {(rec: object) => Promise<void>} [opts.createChatRecord] - writes one chat_history record;
+ *   omit to skip chat import even when the bundle carries chatHistory
+ * @returns {Promise<{name: string, written: number, warnings: string[], leftovers: string[], chatWritten: number, chatSkipped: number}>}
  */
 export async function applyProjectBundle({
-  bundle, existingRels, uploadText, uploadFile, saveProjectRow, projectExists, onProgress
+  bundle, existingRels, uploadText, uploadFile, saveProjectRow, projectExists, onProgress,
+  existingChatKeys, createChatRecord
 }) {
   const name = bundle.project.name
   const base = `projects/${name}/draft`
@@ -188,7 +224,28 @@ export async function applyProjectBundle({
   const bundlePaths = new Set(bundle.files.map((f) => f.path))
   const leftovers = (existingRels || []).filter((rel) => !bundlePaths.has(rel))
 
-  return { name, written, warnings, leftovers }
+  // Chat is applied last and is best-effort: a message that fails to write is one message
+  // fewer in the thread, never a reason to fail an otherwise-successful import.
+  let chatWritten = 0
+  let chatSkipped = 0
+  if (Array.isArray(bundle.chatHistory) && bundle.chatHistory.length && createChatRecord) {
+    const seen = existingChatKeys instanceof Set ? existingChatKeys : new Set()
+    for (let i = 0; i < bundle.chatHistory.length; i++) {
+      const rec = bundle.chatHistory[i]
+      if (onProgress) onProgress(`Chat message ${i + 1}/${bundle.chatHistory.length}`)
+      const key = chatDedupeKey(rec)
+      if (seen.has(key)) { chatSkipped++; continue }
+      try {
+        await createChatRecord(rec)
+        seen.add(key)
+        chatWritten++
+      } catch (e) {
+        chatSkipped++
+      }
+    }
+  }
+
+  return { name, written, warnings, leftovers, chatWritten, chatSkipped }
 }
 
 /** Trigger a browser download of the bundle. */

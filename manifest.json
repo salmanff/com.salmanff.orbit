@@ -1,8 +1,8 @@
 {
   "identifier": "com.salmanff.orbit",
   "display_name": "Orbit",
-  "version": "0.1.0",
-  "description": "Build and publish multi-page sites",
+  "version": "0.20",
+  "description": "Build and publish multi-page sites or slide-show presentations",
   "app_url": "https://github.com/salmanff/com.salmanff.orbit",
   "manifest_url": "https://github.com/salmanff/com.salmanff.orbit/blob/main/manifest.json",
   "pages": {
@@ -10,14 +10,83 @@
       "page_title": "Orbit",
       "html_file": "index.html",
       "css_files": [
-        "orbit.css",
+        "orbitLayout.css",
+        "orbitControls.css",
+        "orbitChat.css",
+        "orbitEditor.css",
+        "orbitFiles.css",
+        "orbitPages.css",
+        "orbitSettings.css",
+        "orbitSlides.css",
+        "orbitResponsive.css",
         "globe.css"
       ],
       "script_files": [
         "orbit.js"
-      ]
+      ],
+      "Description": "The whole Orbit workspace: build and publish multi-page sites or slide-show presentations. orbit.js is a classic script whose only job is to dynamically import modules/orbitMain.js and call initOrbit()."
     }
   },
+  "source_files": [
+    { "path": "orbit.js", "Description": "Classic-script bootstrap that dynamically imports the ES module entry point." },
+    { "path": "modules/orbitMain.js", "Description": "Entry point: start-up order and the post-chat refresh hook." },
+    { "path": "modules/orbit/bus.js", "Description": "Late-bound render hooks so action modules can re-render without import cycles." },
+    { "path": "modules/orbit/state.js", "Description": "The single mutable state object plus derived getters and persisted preferences." },
+    { "path": "modules/orbit/util.js", "Description": "Pure helpers: escaping, path classification, timestamp formatting, auto-grow textarea." },
+    { "path": "modules/orbit/fileIO.js", "Description": "Upload, fetch, rename and delete one file at a time." },
+    { "path": "modules/orbit/filesData.js", "Description": "Draft folder listing, publish status, and project-reference cleanup on rename/delete." },
+    { "path": "modules/orbit/permissions.js", "Description": "Loads and caches this app's permission grants and re-checks before publishing." },
+    { "path": "modules/orbit/projects.js", "Description": "Project records: load, create, switch, persist pages, delete." },
+    { "path": "modules/orbit/slideshowSync.js", "Description": "Keeps slides.json and a deck's hardcoded slide list in step, and converts projects to slide shows." },
+    { "path": "modules/orbit/slideActions.js", "Description": "Slide CRUD driven by the Slides tab: add, duplicate, delete, move, rename, preview." },
+    { "path": "modules/orbit/editor.js", "Description": "CodeMirror mount, dirty flag, save, and the AI lock overlay." },
+    { "path": "modules/orbit/preview.js", "Description": "Assembles the draft preview document, tokenizes its asset URLs, and refreshes the iframe." },
+    { "path": "modules/orbit/publishActions.js", "Description": "Publishing and unpublishing pages and individual image assets." },
+    { "path": "modules/orbit/chat.js", "Description": "Chat history, sending a message, and the two undo mechanisms (instant undo + checkpoints)." },
+    { "path": "modules/orbit/chatPanel.js", "Description": "Renders the Chat tab: threads, streaming output, reply box and undo button." },
+    { "path": "modules/orbit/pagesPanel.js", "Description": "Renders the Pages tab: page list plus the selected page's resources, URL and meta." },
+    { "path": "modules/orbit/filesPanel.js", "Description": "Renders the Files tab: draft file tree, folder view, rename/move/delete and uploads." },
+    { "path": "modules/orbit/slidesTab.js", "Description": "Hosts the slide-show panel and wires its handlers to the slide actions." },
+    { "path": "modules/orbit/settingsView.js", "Description": "The Settings & Projects view: model settings, export/import, versions, transform, delete." },
+    { "path": "modules/orbit/shell.js", "Description": "Full render, left-panel dispatch, chrome and splitter bindings, and global key handlers." },
+    { "path": "modules/checkpoints.js", "Description": "Durable project snapshots saved at the start of each chat thread, with restore and prune." },
+    { "path": "modules/editorLoader.js", "Description": "Lazy CodeMirror 6 loader." },
+    { "path": "modules/fileFetch.js", "Description": "Authenticated access to private userfiles via short-lived fileTokens." },
+    { "path": "modules/llmSettings.js", "Description": "LLM provider/model picker state, rendering and bindings." },
+    { "path": "modules/orbitChat.js", "Description": "Builds the Orbit system prompt, calls the LLM, and applies the returned file sections." },
+    { "path": "modules/orbitFilePanel.js", "Description": "Standalone draft file-tree helpers (currently unused by the main app)." },
+    { "path": "modules/parseFreezrResponse.js", "Description": "Parses the delimited LLM response, both streaming and complete." },
+    { "path": "modules/previewRuntime.js", "Description": "Shim injected into the preview document to authenticate fetches and patch history." },
+    { "path": "modules/projectTransfer.js", "Description": "Project export/import bundle building, validation and application." },
+    { "path": "modules/publishService.js", "Description": "Orchestrates publish/unpublish of a page, delegating paths, file I/O, image rewriting and sharing to modules/publish/." },
+    { "path": "modules/publish/publishPaths.js", "Description": "Normalizes relative paths and computes which files a page's publish set includes." },
+    { "path": "modules/publish/publishFileIO.js", "Description": "Uploads bytes to a path, reads a draft file as text or blob, and syncs an explicit file list from draft to public." },
+    { "path": "modules/publish/publishImages.js", "Description": "Finds, publishes, and un-publishes images referenced inside a page's HTML, rewriting src URLs to their public copies." },
+    { "path": "modules/publish/publishShare.js", "Description": "Shares files with the publish_site permission and resolves canonical public ids, file records, and permission status." },
+    { "path": "modules/slideshow/slideshowModel.js", "Description": "Pure slide-show model helpers: slide list, deck page, manifest JSON, titles." },
+    { "path": "modules/slideshow/slideshowTemplate.js", "Description": "Starter deck HTML/CSS/JS and slide files for new slide shows." },
+    { "path": "modules/slideshow/slideshowConvert.js", "Description": "Reconciles files, manifest and pages to work out what a project's slides actually are." },
+    { "path": "modules/slideshow/deckSlideList.js", "Description": "Rewrites a deck's own hardcoded slide-list array literal in place." },
+    { "path": "modules/slideshow/slideAssets.js", "Description": "Works out which files a single slide alone uses, so deleting it takes only those." },
+    { "path": "modules/slideshow/slidesPanel.js", "Description": "Markup and event wiring for the Slides tab." },
+    { "path": "vendor/codemirror-bundle.js", "Description": "Bundled CodeMirror 6 editor." },
+    { "path": "orbitLayout.css", "Description": "App shell layout: root variables, toolbars, left/right panels, splitter, tabs and panel visibility." },
+    { "path": "orbitControls.css", "Description": "Generic reusable UI atoms: buttons, select, icon buttons, banners, links and muted/hidden utilities." },
+    { "path": "orbitChat.css", "Description": "Chat tab styling: threads, messages, thinking blocks, streaming, reply box, undo and checkpoints." },
+    { "path": "orbitEditor.css", "Description": "Editor/preview pane styling: CodeMirror mount, preview iframe, image/asset preview and the no-preview notice." },
+    { "path": "orbitFiles.css", "Description": "Files tab styling: file tree, folder view, uploads and publish-status indicators." },
+    { "path": "orbitPages.css", "Description": "Pages tab styling: the page list, page detail panel, resources and meta fields." },
+    { "path": "orbitSettings.css", "Description": "Settings & Projects view styling: collapsible sections, project list and import/export controls." },
+    { "path": "orbitSlides.css", "Description": "Slides tab styling: slide list items, numbering, actions and deck status." },
+    { "path": "orbitResponsive.css", "Description": "Mobile layout override that stacks the left/right panels below 800px width." },
+    { "path": "globe.css", "Description": "The animated globe used as the toolbar busy indicator." },
+    { "path": "index.html", "Description": "Single mount point for the app." },
+    { "path": "modules/orbit/state.js", "Description": "Central mutable state object plus derived getters (draftBasePath, getActivePage, activeSlide, ...) and persisted left-panel-width/last-project prefs." },
+    { "path": "modules/orbit/util.js", "Description": "Pure helpers: HTML escaping, path classification, timestamp formatting, row normalization and textarea auto-grow." },
+    { "path": "modules/orbit/bus.js", "Description": "Late-bound render hooks (render/renderLeftPanel/refreshPagesPanel) so action modules can re-render without importing shell.js." },
+    { "path": "modules/orbit/fileIO.js", "Description": "Upload (text/binary), fetch and rename a single draft file." },
+    { "path": "modules/orbit/permissions.js", "Description": "Loads and caches this app's permission grants (publish_site, use_llm, allow_iframe_preview)." }
+  ],
   "files": {
     "do_not_allow": false,
     "post_data_html_id": "file",
@@ -58,6 +127,14 @@
         "pages": {
           "type": "object",
           "description": "Page specs with html_file, css_files, js_files"
+        },
+        "type": {
+          "type": "string",
+          "description": "'web' (default) or 'slideshow'"
+        },
+        "slides": {
+          "type": "array",
+          "description": "Slide show only: ordered [{ id, file, title }] slide list"
         }
       }
     },
@@ -77,6 +154,10 @@
         },
         "files_changed": {
           "type": "array"
+        },
+        "checkpoint_path": {
+          "type": "string",
+          "description": "Path of the checkpoint saved just before this thread began (first message only); null otherwise"
         }
       }
     }
@@ -97,5 +178,24 @@
       "type": "use_llm",
       "description": "Use AI to help edit site files"
     }
-  ]
+  ],
+  "authorship": {
+    "last_modified": {
+      "id": "saladmin",
+      "host": "http://localhost:3000",
+      "date": 1790367452888
+    },
+    "contributors": [],
+    "history": [
+      {
+        "event": "edited_by",
+        "by": {
+          "id": "saladmin",
+          "host": "http://localhost:3000",
+          "date": 1790367452888
+        },
+        "date": 1790367452888
+      }
+    ]
+  }
 }

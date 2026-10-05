@@ -1,0 +1,27 @@
+@media (max-width: 800px) {
+  .orbit-body {
+    flex-direction: column;
+  }
+  .orbit-splitter {
+    display: none;
+  }
+  .orbit-left {
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    max-width: none !important;
+    border-right: none;
+    border-bottom: 1px solid var(--orbit-border);
+  }
+  /* Give the right panel a guaranteed height so the document grows past
+     the viewport and becomes scrollable — without this, scrollIntoView
+     has nowhere to scroll to. */
+  .orbit-right {
+    min-height: 90vh;
+    flex: 0 0 auto;
+  }
+  .orbit-preview-frame,
+  .orbit-editor-mount,
+  .orbit-image-preview {
+    min-height: 80vh;
+  }
+}

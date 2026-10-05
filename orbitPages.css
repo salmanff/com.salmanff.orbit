@@ -1,0 +1,448 @@
+.orbit-page-card {
+  border: 1px solid var(--orbit-border);
+  border-radius: 8px;
+  padding: 0.85rem 0.9rem;
+  margin-bottom: 0.75rem;
+  background: var(--orbit-panel);
+}
+
+.orbit-page-card--active {
+  border-color: var(--orbit-accent);
+}
+
+.orbit-page-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.orbit-page-title {
+  background: none;
+  border: none;
+  color: var(--orbit-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.orbit-page-title:hover {
+  color: var(--orbit-accent);
+}
+
+.orbit-page-status {
+  font-size: 11px;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  margin-left: auto;
+}
+
+.orbit-page-status--pub {
+  background: #23863620;
+  color: #3fb950;
+}
+
+.orbit-page-status--draft {
+  background: #8b949e20;
+  color: var(--orbit-muted);
+}
+
+.orbit-page-status--dirty {
+  background: #d2992020;
+  color: #d29922;
+}
+
+.orbit-page-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.orbit-page-links {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 12px;
+}
+
+.orbit-page-open {
+  color: var(--orbit-accent);
+  text-decoration: none;
+}
+
+.orbit-page-open:hover {
+  text-decoration: underline;
+}
+
+.orbit-page-url-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  font-size: 12px;
+  color: var(--orbit-muted);
+}
+
+.orbit-page-url-row label {
+  flex-shrink: 0;
+}
+
+.orbit-page-url-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  font-family: inherit;
+}
+
+.orbit-page-url-input:read-only {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.orbit-page-meta-section {
+  margin-bottom: 0.4rem;
+}
+
+.orbit-meta-label {
+  display: block;
+  font-size: 11px;
+  color: var(--orbit-muted);
+  margin-bottom: 0.15rem;
+  margin-top: 0.3rem;
+}
+
+.orbit-meta-label:first-child {
+  margin-top: 0;
+}
+
+.orbit-meta-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.25rem 0.35rem;
+  font-family: inherit;
+}
+
+.orbit-meta-textarea {
+  min-height: 2.5rem;
+  resize: vertical;
+}
+
+.orbit-page-details {
+  margin-top: 0.35rem;
+  border-top: 1px solid var(--orbit-border);
+}
+
+.orbit-page-details-summary {
+  font-size: 12px;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.35rem 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.orbit-page-details-summary::-webkit-details-marker {
+  display: none;
+}
+
+.orbit-page-details-summary::before {
+  content: '▸';
+  flex-shrink: 0;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+
+.orbit-page-details[open] > .orbit-page-details-summary::before {
+  transform: rotate(90deg);
+}
+
+.orbit-page-details-body {
+  padding-bottom: 0.35rem;
+}
+
+.orbit-page-resources-section {
+  margin-top: 0.25rem;
+}
+
+.orbit-delete-page-section {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--orbit-border);
+}
+
+.orbit-delete-page-btn {
+  background: transparent;
+  color: #f85149;
+  border: 1px solid #f85149;
+  opacity: 0.7;
+}
+
+.orbit-delete-page-btn:hover {
+  opacity: 1;
+}
+
+.orbit-res-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0.35rem;
+}
+
+.orbit-res-row {
+  font-size: 12px;
+  color: var(--orbit-text);
+  padding: 0.15rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.orbit-res-html {
+  color: var(--orbit-muted);
+}
+
+.orbit-res-link {
+  background: none;
+  border: none;
+  color: var(--orbit-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 0;
+  text-align: left;
+}
+
+.orbit-res-link:hover {
+  text-decoration: underline;
+}
+
+.orbit-res-html .orbit-res-link {
+  color: var(--orbit-muted);
+}
+
+.orbit-res-html .orbit-res-link:hover {
+  color: var(--orbit-accent);
+}
+
+.orbit-res-html-change {
+  background: none;
+  border: none;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  padding: 0 0.25rem;
+  text-decoration: underline;
+}
+
+.orbit-res-html-change:hover {
+  color: var(--orbit-accent);
+}
+
+.orbit-res-html-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.1rem 0.25rem;
+}
+
+.orbit-res-remove {
+  background: none;
+  border: none;
+  color: #f85149;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 0.15rem;
+  line-height: 1;
+}
+
+.orbit-res-add {
+  font-size: 12px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+.orbit-new-page-btn {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+/* ── Pages split layout ──────────────────────────────────────────────────── */
+.orbit-left-body:has(.orbit-pages-split) {
+  overflow: hidden;
+  padding: 0;
+}
+
+.orbit-pages-split {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Top: page list */
+.orbit-pages-list-wrap {
+  flex: 0 0 auto;
+  max-height: 45%;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 2px solid var(--orbit-accent);
+  background: var(--orbit-panel);
+}
+
+.orbit-pages-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.35rem 0.5rem 0;
+}
+
+.orbit-pages-list-footer {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem 0.6rem;
+  border-top: 1px solid var(--orbit-border);
+}
+
+.orbit-page-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-bottom: 0.15rem;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.orbit-page-item:hover {
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.orbit-page-item--active {
+  background: rgba(88, 166, 255, 0.14);
+}
+
+.orbit-page-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--orbit-text);
+}
+
+/* Bottom: detail panel */
+.orbit-pages-detail-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.orbit-detail-empty {
+  padding: 1rem 0.9rem;
+}
+
+.orbit-detail-inner {
+  padding: 0.9rem 0.9rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.orbit-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.orbit-detail-page-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--orbit-text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-detail-page-name-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.orbit-detail-page-name-btn:hover {
+  color: var(--orbit-accent);
+}
+
+.orbit-detail-links {
+  display: flex;
+  gap: 0.6rem;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.orbit-detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.orbit-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--orbit-border);
+}
+
+.orbit-detail-section:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Description textarea — no max-height, grows freely */
+.orbit-detail-textarea {
+  min-height: 7rem;
+  max-height: none;
+  resize: vertical;
+}
+
+.orbit-detail-danger {
+  margin-top: 1rem;
+  padding: 1rem 0 0.5rem;
+  border-top: 1px dashed rgba(248, 81, 73, 0.3);
+}

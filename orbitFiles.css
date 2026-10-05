@@ -1,0 +1,184 @@
+/* ── File tree ──────────────────────────────── */
+.orbit-tree {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.orbit-tree li {
+  margin-bottom: 0.15rem;
+}
+
+.orbit-tree-root {
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+.orbit-tree-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.orbit-tree-toggle {
+  font-size: 9px;
+  color: var(--orbit-muted);
+  padding: 0 3px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.orbit-tree-folder-btn {
+  font-weight: 600;
+}
+
+.orbit-tree-file {
+  font-size: 13px;
+}
+
+/* ── Folder view ────────────────────────────── */
+.orbit-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--orbit-border);
+}
+
+.orbit-folder-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--orbit-text);
+}
+
+.orbit-back-btn {
+  font-size: 12px;
+}
+
+.orbit-folder-files {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.orbit-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--orbit-border);
+}
+
+.orbit-file-row:last-child {
+  border-bottom: none;
+}
+
+.orbit-file-open {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.orbit-file-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.orbit-move-select {
+  font-size: 11px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.15rem 0.25rem;
+  max-width: 80px;
+  cursor: pointer;
+}
+
+.orbit-rename-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-accent);
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  font-family: inherit;
+}
+
+.orbit-files li {
+  margin-bottom: 0.35rem;
+}
+
+/* ── Upload section ───────────────────────────── */
+.orbit-upload-section {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--orbit-border);
+}
+
+.orbit-upload-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem 1rem;
+  border: 2px dashed var(--orbit-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.orbit-upload-label:hover,
+.orbit-upload-dragover {
+  border-color: var(--orbit-accent);
+  background: rgba(88, 166, 255, 0.06);
+}
+
+.orbit-upload-input {
+  display: none;
+}
+
+.orbit-upload-text {
+  font-size: 0.82rem;
+  color: var(--orbit-muted);
+}
+
+.orbit-upload-status {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--orbit-muted);
+}
+
+/* ── File publish status indicators ──────────── */
+.orbit-file-pub-badge {
+  font-size: 10px;
+  color: #3fb950;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.orbit-tree-pub-dot {
+  font-size: 8px;
+  color: #3fb950;
+  margin-left: 0.2rem;
+  vertical-align: middle;
+  opacity: 0.85;
+}
+
+.orbit-btn-unpub {
+  color: #d29922;
+  border-color: #d29922;
+  font-size: 11px;
+}
+
+.orbit-btn-unpub:hover {
+  color: #f0a020;
+  border-color: #f0a020;
+}

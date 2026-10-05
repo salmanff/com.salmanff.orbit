@@ -1,0 +1,156 @@
+.orbit-right-body .orbit-editor-mount {
+  flex: 1;
+  min-height: 320px;
+}
+
+.orbit-editor-mount {
+  flex: 1;
+  min-height: 320px;
+}
+
+.orbit-editor-mount .cm-editor {
+  height: 100%;
+  min-height: 320px;
+}
+
+.orbit-preview-frame {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  border: none;
+  background: #fff;
+}
+
+/* ── Image preview ──────────────────────────── */
+.orbit-image-preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  overflow: auto;
+  background: var(--orbit-bg);
+}
+
+.orbit-image-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+
+.orbit-asset-urls {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--orbit-border);
+  background: var(--orbit-panel);
+}
+
+.orbit-asset-url-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.orbit-asset-url-row .orbit-btn-sm {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.orbit-asset-url-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--orbit-bg);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.orbit-asset-url-hint {
+  font-size: 11px;
+  color: var(--orbit-muted);
+  padding-left: 0.25rem;
+}
+
+.orbit-asset-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--orbit-muted);
+}
+
+.orbit-asset-placeholder-icon {
+  font-size: 48px;
+}
+
+.orbit-asset-placeholder-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: var(--orbit-text);
+}
+
+.orbit-asset-placeholder-link {
+  font-size: 12px;
+  color: var(--orbit-accent);
+  text-decoration: none;
+}
+
+.orbit-asset-placeholder-link:hover {
+  text-decoration: underline;
+}
+
+/* No-preview notice shown when allow_iframe_preview isn't granted */
+.orbit-no-preview-notice {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  background: var(--orbit-bg);
+}
+
+.orbit-no-preview-inner {
+  max-width: 340px;
+  text-align: center;
+  color: var(--orbit-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.orbit-no-preview-inner p {
+  margin: 0 0 0.6rem;
+}
+
+.orbit-no-preview-inner strong {
+  color: var(--orbit-text);
+}
+
+.orbit-no-preview-inner code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  background: var(--orbit-panel);
+  border: 1px solid var(--orbit-border);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+}
+
+.orbit-no-preview-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.orbit-no-preview-actions .orbit-btn,
+.orbit-no-preview-actions .orbit-btn-sm {
+  text-decoration: none;
+}

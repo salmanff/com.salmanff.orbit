@@ -1,0 +1,488 @@
+/* ── Chat layout ─────────────────────────────── */
+.orbit-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.orbit-chat-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--orbit-border);
+  flex-shrink: 0;
+}
+
+.orbit-chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Thread groups ───────────────────────────── */
+.orbit-thread {
+  margin-bottom: 0.25rem;
+  border: 1px solid var(--orbit-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.orbit-thread--active {
+  border-color: var(--orbit-accent);
+}
+
+.orbit-thread-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 12px;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  user-select: none;
+  background: var(--orbit-panel);
+}
+
+.orbit-thread-summary:hover {
+  color: var(--orbit-text);
+}
+
+.orbit-thread-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-thread-meta {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.orbit-thread-file-count {
+  font-size: 10px;
+  color: var(--orbit-accent);
+}
+
+.orbit-thread-ts {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+/* When expanded: hide preview, meta snaps left */
+.orbit-thread[open] > .orbit-thread-summary .orbit-thread-preview {
+  display: none;
+}
+
+.orbit-thread[open] > .orbit-thread-summary .orbit-thread-meta {
+  margin-left: 0;
+}
+
+.orbit-thread-body {
+  padding: 0.5rem 0.6rem;
+}
+
+/* ── Thread summary (collapsed) ──────────────── */
+.orbit-thread-q {
+  color: var(--orbit-text);
+}
+
+.orbit-thread-count {
+  font-size: 10px;
+  background: var(--orbit-border);
+  color: var(--orbit-text);
+  border-radius: 3px;
+  padding: 0 0.3rem;
+  min-width: 1.1em;
+  text-align: center;
+}
+
+/* ── Exchange folding ────────────────────────── */
+.orbit-exchange {
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid var(--orbit-border);
+  padding-bottom: 0.35rem;
+}
+
+.orbit-exchange:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.orbit-exchange-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 12px;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.2rem 0;
+  list-style: none;
+}
+
+.orbit-exchange-summary::-webkit-details-marker {
+  display: none;
+}
+
+.orbit-exchange-summary::before {
+  content: '▸';
+  flex-shrink: 0;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+
+.orbit-exchange[open] > .orbit-exchange-summary::before {
+  transform: rotate(90deg);
+}
+
+.orbit-exchange-q {
+  color: var(--orbit-text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-exchange-meta {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* When expanded: hide preview, meta snaps left */
+.orbit-exchange[open] > .orbit-exchange-summary .orbit-exchange-q {
+  display: none;
+}
+
+.orbit-exchange[open] > .orbit-exchange-summary .orbit-exchange-meta {
+  margin-left: 0;
+}
+
+/* ── Messages ────────────────────────────────── */
+.orbit-msg {
+  margin-bottom: 0.6rem;
+}
+
+.orbit-msg:last-child {
+  margin-bottom: 0;
+}
+
+.orbit-msg-user {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-bottom: 0.15rem;
+}
+
+.orbit-msg-user-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--orbit-accent);
+  flex-shrink: 0;
+}
+
+.orbit-msg-user-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.orbit-msg-ts {
+  font-size: 10px;
+  color: var(--orbit-muted);
+  opacity: 0.6;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.orbit-msg-assistant {
+  margin-top: 0.25rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--orbit-border);
+}
+
+.orbit-msg-explanation {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--orbit-text);
+  font-size: 13px;
+  margin-bottom: 0.35rem;
+}
+
+/* ── Thinking block ──────────────────────────── */
+.orbit-thinking {
+  margin-bottom: 0.35rem;
+  border: 1px solid var(--orbit-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.orbit-thinking > summary {
+  font-size: 11px;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.25rem 0.4rem;
+  background: var(--orbit-panel);
+}
+
+.orbit-thinking-pre {
+  font-size: 11px;
+  color: var(--orbit-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow: auto;
+  margin: 0;
+  padding: 0.35rem 0.4rem;
+}
+
+/* ── File change items ───────────────────────── */
+.orbit-file-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+}
+
+.orbit-file-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-size: 12px;
+}
+
+.orbit-file-icon {
+  flex-shrink: 0;
+  color: #3fb950;
+  margin-top: 1px;
+}
+
+.orbit-file-icon--pending {
+  color: var(--orbit-accent);
+}
+
+.orbit-file-icon--error {
+  color: #f85149;
+}
+
+.orbit-file-name {
+  font-weight: 600;
+  color: var(--orbit-text);
+  flex-shrink: 0;
+}
+
+.orbit-file-snippet {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
+  color: var(--orbit-muted);
+  max-height: 3.9em;
+  line-height: 1.3;
+  overflow: hidden;
+  white-space: pre;
+  text-overflow: ellipsis;
+  background: var(--orbit-panel);
+  border-radius: 3px;
+  padding: 0.15rem 0.3rem;
+  /* Anchor content to the bottom of the box so the newest lines stay visible
+     as the preview updates during streaming. */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+/* ── Streaming ───────────────────────────────── */
+.orbit-streaming-wrap {
+  margin-top: 0.35rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--orbit-accent);
+}
+
+.orbit-spinner-inline {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--orbit-border);
+  border-top-color: var(--orbit-accent);
+  border-radius: 50%;
+  animation: orbit-spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── Globe idle (non-spinning) state ───────────────────────────────────── */
+/* By default the toolbar globe is idle; class is removed while chatBusy   */
+.globe-toolbar.orbit-globe-idle .sphere,
+.globe-toolbar.orbit-globe-idle .orbit-ring,
+.globe-toolbar.orbit-globe-idle .orbit-dot {
+  animation-play-state: paused;
+}
+.globe-toolbar.orbit-globe-idle::before {
+  animation-play-state: paused;
+}
+
+/* ── Editor locked overlay ──────────────────────────────────────────────── */
+.orbit-editor-locked {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 20, 25, 0.72);
+  backdrop-filter: blur(2px);
+  pointer-events: all;
+}
+
+.orbit-editor-locked.hidden {
+  display: none;
+}
+
+.orbit-editor-locked-msg {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--orbit-panel);
+  border: 1px solid var(--orbit-accent);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--orbit-text);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+@keyframes orbit-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Reply box (inside active thread) ────────── */
+.orbit-reply-box {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--orbit-border);
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-end;
+}
+
+.orbit-reply-input {
+  flex: 1;
+  min-height: 2rem;
+}
+
+.orbit-reply-box .orbit-btn-sm {
+  flex-shrink: 0;
+  padding: 0.35rem 0.7rem;
+}
+
+/* ── New Chat input (bottom of panel) ────────── */
+.orbit-chat-bottom {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem 0.6rem;
+  border-top: 1px solid var(--orbit-border);
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-end;
+}
+
+.orbit-chat-bottom .orbit-chat-input {
+  flex: 1;
+  min-height: 2rem;
+}
+
+.orbit-chat-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--orbit-panel);
+  color: var(--orbit-text);
+  border: 1px solid var(--orbit-border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font: inherit;
+  font-size: 13px;
+  /* Height is managed by bindAutoGrowTextarea() in JS, which grows the box
+     as the user types up to a max, then enables internal scrolling. We keep
+     the manual resize handle disabled so the two don't fight. */
+  resize: none;
+  min-height: 2.2rem;
+  overflow-y: hidden;
+  line-height: 1.35;
+}
+
+.orbit-chat-perm {
+  margin: 0;
+  padding: 0 0.75rem;
+  font-size: 12px;
+}
+
+/* ── Undo (single most recent chat reply) ────── */
+.orbit-undo-row {
+  margin-top: 0.45rem;
+}
+
+/* ── Checkpoints (durable per-new-chat snapshots) ─ */
+.orbit-checkpoint-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.5rem;
+  background: var(--orbit-panel);
+  border: 1px solid var(--orbit-border);
+  border-radius: 6px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.orbit-checkpoint-label {
+  color: var(--orbit-muted);
+  flex: 1;
+  min-width: 0;
+}
+
+.orbit-checkpoint-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.orbit-checkpoint-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--orbit-border);
+  border-radius: 6px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.orbit-checkpoint-when {
+  font-weight: 600;
+  color: var(--orbit-text);
+}
+
+.orbit-checkpoint-trigger,
+.orbit-checkpoint-count {
+  color: var(--orbit-muted);
+}
+
+.orbit-checkpoint-count {
+  margin-right: auto;
+}

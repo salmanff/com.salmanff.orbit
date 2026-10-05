@@ -1,0 +1,168 @@
+.orbit-root {
+  --orbit-bg: #0f1419;
+  --orbit-panel: #151b22;
+  --orbit-border: #30363d;
+  --orbit-text: #e6edf3;
+  --orbit-muted: #8b949e;
+  --orbit-accent: #58a6ff;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  color: var(--orbit-text);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+.orbit-error {
+  color: #f85149;
+  padding: 1rem;
+}
+
+.orbit-left-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.6rem;
+  border-bottom: 1px solid var(--orbit-border);
+  background: var(--orbit-panel);
+}
+
+.orbit-left-toolbar .orbit-select {
+  min-width: 0;
+  flex: 1;
+}
+
+.orbit-left-toolbar .globe-toolbar {
+  margin-right: 0.15rem;
+}
+
+.orbit-right-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 80px 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--orbit-border);
+  background: var(--orbit-panel);
+}
+
+.orbit-body {
+  flex: 1 1 0;
+  display: flex;
+  min-height: 0;
+  align-items: stretch;
+}
+
+body.orbit-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.orbit-left {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  min-height: 0;
+  background: var(--orbit-bg);
+  border-right: 1px solid transparent;
+}
+
+.orbit-splitter {
+  flex: 0 0 6px;
+  width: 6px;
+  margin: 0 -3px;
+  padding: 0 3px;
+  cursor: col-resize;
+  touch-action: none;
+  flex-shrink: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 2px,
+    var(--orbit-border) 2px,
+    var(--orbit-border) 4px,
+    transparent 4px,
+    transparent 100%
+  );
+  background-clip: content-box;
+  align-self: stretch;
+}
+
+.orbit-splitter:hover {
+  background: linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 1px,
+    var(--orbit-accent) 1px,
+    var(--orbit-accent) 5px,
+    transparent 5px,
+    transparent 100%
+  );
+  background-clip: content-box;
+}
+
+.orbit-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+  background: var(--orbit-bg);
+}
+
+.orbit-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--orbit-border);
+}
+
+.orbit-tabs button {
+  flex: 1;
+  padding: 0.5rem 0.35rem;
+  background: transparent;
+  border: none;
+  color: var(--orbit-muted);
+  cursor: pointer;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.orbit-tabs button.active {
+  color: var(--orbit-text);
+  border-bottom: 2px solid var(--orbit-accent);
+}
+
+.orbit-left-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.orbit-left-body:has(.orbit-chat) {
+  overflow: hidden;
+  padding: 0;
+}
+
+.orbit-right-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.orbit-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.orbit-panel.hidden {
+  display: none;
+}
