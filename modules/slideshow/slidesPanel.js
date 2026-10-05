@@ -4,6 +4,7 @@
  * Every state change goes through the handlers orbitMain passes in, so this
  * module knows nothing about freezr, persistence or the preview.
  */
+import { defaultPublicIdForPage } from '../publishService.js'
 
 function esc(s) {
   const d = document.createElement('div')
@@ -13,7 +14,7 @@ function esc(s) {
 
 /**
  * @param {object} ctx - { slides, activeSlideId, deckPage, projectName,
- *   canPublish, deckDirty, availableAssets }
+ *   projectFolderName, canPublish, deckDirty, availableAssets }
  */
 export function renderSlidesPanel(ctx) {
   const {
@@ -21,6 +22,7 @@ export function renderSlidesPanel(ctx) {
     activeSlideId = null,
     deckPage = null,
     projectName = '',
+    projectFolderName = '',
     canPublish = false,
     deckDirty = false,
     availableAssets = []
@@ -80,6 +82,11 @@ export function renderSlidesPanel(ctx) {
        <button type="button" class="orbit-btn-sm orbit-btn-secondary" data-deck-action="unpublish" ${canPublish ? '' : 'disabled'}>Unpublish</button>`
     : `<button type="button" class="orbit-btn-sm" data-deck-action="publish" ${canPublish && slides.length ? '' : 'disabled'}>Publish</button>`
 
+  const isAdmin = !!(typeof freezrMeta !== 'undefined' && (freezrMeta.adminUser || freezrMeta.publisherUser))
+  const defaultPid = deckPage ? defaultPublicIdForPage(projectFolderName, deckPage) : ''
+  const customPid = deckPage?.custom_public_id || ''
+  const displayUrl = customPid || defaultPid
+
   const cssFiles = deckPage?.css_files || []
   const jsFiles = deckPage?.js_files || []
   const templateRows = deckPage
@@ -127,6 +134,15 @@ export function renderSlidesPanel(ctx) {
           </div>
 
           <div class="orbit-detail-section">
+            <label class="orbit-meta-label">Public URL path</label>
+            <input type="text" class="orbit-page-url-input" id="orbit-deck-url"
+              value="${esc(displayUrl)}"
+              placeholder="${esc(defaultPid)}"
+              ${isAdmin ? '' : 'readonly'}
+              title="${isAdmin ? 'Custom public URL path (admin/publisher only)' : 'Public URL path'}">
+          </div>
+
+          <div class="orbit-detail-section">
             <label class="orbit-meta-label">Deck template (shared by every slide)</label>
             <ul class="orbit-res-list">${templateRows}</ul>
             ${availableAssets.length ? `<select class="orbit-res-add" id="orbit-deck-add">${addOptions}</select>` : ''}
@@ -153,7 +169,7 @@ export function renderSlidesPanel(ctx) {
  * @param {object} h - handlers (onSelect, onEdit, onAdd, onDuplicate,
  *   onDelete, onMove, onRename, onPublish, onRepublish,
  *   onUnpublish, onOpenDraft, onOpenFile, onAddResource, onRemoveResource,
- *   onMeta, onRecheck)
+ *   onMeta, onPublicId, onRecheck)
  */
 export function bindSlidesPanel(body, h) {
   if (!body || !h) return
@@ -222,6 +238,8 @@ export function bindSlidesPanel(body, h) {
   body.querySelectorAll('[data-deck-meta]').forEach((el) => {
     el.addEventListener('change', () => h.onMeta(el.getAttribute('data-deck-meta'), el.value))
   })
+
+  body.querySelector('#orbit-deck-url')?.addEventListener('change', (e) => h.onPublicId(e.target.value))
 
   body.querySelector('#orbit-perm-recheck')?.addEventListener('click', () => h.onRecheck())
 }

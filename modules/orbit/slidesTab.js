@@ -31,6 +31,7 @@ export async function renderSlidesTab(body, opts = {}) {
     activeSlideId: activeSlide()?.id || null,
     deckPage: deck,
     projectName: proj.display_name || proj.name,
+    projectFolderName: proj.name,
     canPublish: opts.canPublish,
     deckDirty: deck ? isPageDirty(deck) : true,
     availableAssets
@@ -63,6 +64,11 @@ export async function renderSlidesTab(body, opts = {}) {
     onMeta: async (field, value) => {
       if (!deck.meta) deck.meta = {}
       deck.meta[field] = (value || '').trim() || null
+      await persistProjectPages(proj)
+    },
+    onPublicId: async (value) => {
+      if (!deck) return
+      deck.custom_public_id = (value || '').trim() || null
       await persistProjectPages(proj)
     },
     onRecheck: async () => { await reloadPermissions(); await refreshPagesPanel() }

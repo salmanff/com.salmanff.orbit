@@ -17,6 +17,7 @@ import { fetchDraftAsTextOrBlob, syncDraftToPublicExplicit } from './publish/pub
 import {
   publishHtmlImages, rewriteImgSrcs, unpublishHtmlImages, fetchPublishedHtml
 } from './publish/publishImages.js'
+import { publicFolderBaseUrl, injectPublicBase } from './publish/publishBase.js'
 import {
   PUBLISH_PERM, canonicalPublicIdForFilePath, browseUrlToPublicId, publicIdFromShareResponse,
   sharePublicFileForPublish, loadFileRecord, defaultPublicIdForPage, hasPublishPermission
@@ -80,6 +81,10 @@ export async function publishProjectSite(project, page, opts = {}) {
       // Always rewrite: maps draft images to public URLs AND strips any
       // ?fileToken= the in-app display may have left in the draft HTML.
       htmlForPublic = rewriteImgSrcs(draftHtmlResult.text, urlMap, projectName)
+      // Pin relative run-time fetches to the project's public folder. Without this, a page served
+      // under a CUSTOM short public id resolves them against the site root and gets back the
+      // server's HTML error page instead of the file. See publish/publishBase.js.
+      htmlForPublic = injectPublicBase(htmlForPublic, publicFolderBaseUrl(projectName, entryRel))
     }
   } catch (e) {
     console.warn('publishProjectSite: image scan failed', e)
