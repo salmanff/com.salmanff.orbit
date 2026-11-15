@@ -6,6 +6,7 @@
  * on the published site, where the freezr SDK is not loaded.
  */
 import { slidesManifestJson } from './slideshowModel.js'
+import { HISTORY_PATCH } from './deckHistoryFix.js'
 
 const DECK_HTML = `<div class="deck" id="deck">
   <div class="deck-stage" id="deck-stage">
@@ -215,7 +216,12 @@ const DECK_JS = `/* deck.js — the slide-show runtime Orbit created for this pr
  *  - slides.json: {"slides":[{"id","file","title"}]} in presentation order
  *  - each slide is wrapped in <section class="slide" data-slide-id="ID">
  *  - start slide: <meta name="orbit-start-slide" content="N"> (1-based), else #N
+ *
+ * The deck reads the URL hash once on load to pick a start slide, and keeps it updated as the
+ * user navigates. A global patch (rather than building the URL here) keeps that write pointed
+ * at the real address bar URL, custom public id included — see modules/slideshow/deckHistoryFix.js.
  */
+${HISTORY_PATCH}
 (function () {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start)
   else start()
@@ -277,6 +283,9 @@ const DECK_JS = `/* deck.js — the slide-show runtime Orbit created for this pr
         slides[k].setAttribute('aria-hidden', k === current ? 'false' : 'true')
       }
       if (counter) counter.textContent = (current + 1) + ' / ' + slides.length
+      // A relative '#N' is safe here: the history patch above rebases it against the real
+      // address bar URL (custom public id included) instead of letting the browser resolve it
+      // against <base href> — see deckHistoryFix.js.
       try { history.replaceState(null, '', '#' + (current + 1)) } catch (e) {}
     }
 

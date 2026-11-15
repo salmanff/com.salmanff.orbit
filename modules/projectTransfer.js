@@ -70,7 +70,7 @@ export function isValidProjectName(name) {
  * @param {string[]} opts.fileRels - draft-relative paths to include
  * @param {(rel: string) => Promise<Blob>} opts.fetchDraftBlob
  * @param {(msg: string) => void} [opts.onProgress]
- * @param {Array<object>} [opts.chatHistory] - chat_history rows for this project, when the user
+ * @param {Array<object>} [opts.chatHistory] - chatHistory rows for this project, when the user
  *   opted in to "include chat"; stored on the bundle keyed so re-importing it is safe (see
  *   chatDedupeKey)
  * @returns {Promise<{bundle: object, warnings: string[]}>}
@@ -79,7 +79,13 @@ export async function buildProjectBundle({ project, fileRels, fetchDraftBlob, on
   if (!project?.name) throw new Error('No project to export')
   const files = []
   const warnings = []
-  const list = (fileRels || []).filter(isSafeRelPath)
+  // A path we refuse to carry used to disappear from the bundle without a word, which is the
+  // one failure mode an export must never have.
+  const list = []
+  for (const rel of fileRels || []) {
+    if (isSafeRelPath(rel)) list.push(rel)
+    else warnings.push(`${rel}: skipped (unsafe path, not included in the export)`)
+  }
 
   for (let i = 0; i < list.length; i++) {
     const rel = list[i]
@@ -137,7 +143,7 @@ export async function buildProjectBundle({ project, fileRels, fetchDraftBlob, on
 }
 
 /**
- * A stable identity for a chat_history record, independent of the server-assigned _id.
+ * A stable identity for a chatHistory record, independent of the server-assigned _id.
  * Importing the same bundle twice, or passing one project back and forth between two
  * instances, must not duplicate every message each time — this is the key that catches that.
  */
@@ -172,32 +178,38 @@ export function validateBundle(bundle) {
 /**
  * Write a bundle's files into a project's draft folder and upsert its row.
  *
- * Existing files of the same path are overwritten. Files already in the draft
- * folder that the bundle does not mention are LEFT ALONE and reported back — an
- * import should not silently delete work that predates it.
+ * Existing files of the same path are overwritten. What happens to files already in the
+ * folder that the bundle does NOT mention depends on `replaceAll`:
+ *   - replaceAll true  — they are deleted, so the project ends up exactly as exported.
+ *   - replaceAll false — they are left alone and reported back in `leftovers`.
+ * The caller passes false whenever its folder listing was not trustworthy: deleting on the
+ * strength of a truncated listing would destroy files the bundle legitimately contains.
  *
  * @param {object} opts
  * @param {object} opts.bundle - already passed through validateBundle
  * @param {string[]} [opts.existingRels] - what is currently in the draft folder
+ * @param {boolean} [opts.replaceAll] - delete files not present in the bundle
+ * @param {(rel: string) => Promise<void>} [opts.deleteFile] - required when replaceAll is true
  * @param {(fullPath: string, text: string, mime: string) => Promise<void>} opts.uploadText
  * @param {(fullPath: string, file: File) => Promise<void>} opts.uploadFile
  * @param {(project: object, exists: boolean) => Promise<void>} opts.saveProjectRow
  * @param {boolean} opts.projectExists
  * @param {(msg: string) => void} [opts.onProgress]
- * @param {Set<string>} [opts.existingChatKeys] - chatDedupeKey() of chat_history already on this
+ * @param {Set<string>} [opts.existingChatKeys] - chatDedupeKey() of chatHistory already on this
  *   project, so re-importing the same bundle (or round-tripping it) does not duplicate messages
- * @param {(rec: object) => Promise<void>} [opts.createChatRecord] - writes one chat_history record;
+ * @param {(rec: object) => Promise<void>} [opts.createChatRecord] - writes one chatHistory record;
  *   omit to skip chat import even when the bundle carries chatHistory
- * @returns {Promise<{name: string, written: number, warnings: string[], leftovers: string[], chatWritten: number, chatSkipped: number}>}
+ * @returns {Promise<{name: string, written: number, deleted: number, warnings: string[], leftovers: string[], chatWritten: number, chatSkipped: number}>}
  */
 export async function applyProjectBundle({
-  bundle, existingRels, uploadText, uploadFile, saveProjectRow, projectExists, onProgress,
-  existingChatKeys, createChatRecord
+  bundle, existingRels, replaceAll, deleteFile, uploadText, uploadFile, saveProjectRow,
+  projectExists, onProgress, existingChatKeys, createChatRecord
 }) {
   const name = bundle.project.name
   const base = `projects/${name}/draft`
   const warnings = []
   let written = 0
+  let deleted = 0
 
   for (let i = 0; i < bundle.files.length; i++) {
     const f = bundle.files[i]
@@ -217,12 +229,32 @@ export async function applyProjectBundle({
     }
   }
 
+  const bundlePaths = new Set(bundle.files.map((f) => f.path))
+  const extras = (existingRels || []).filter((rel) => !bundlePaths.has(rel))
+
+  // Deletion comes AFTER every write: if a write failed we would rather leave the folder
+  // over-full than have removed the old copy of a file the bundle could not replace.
+  let leftovers = extras
+  if (replaceAll && deleteFile && extras.length) {
+    leftovers = []
+    for (let i = 0; i < extras.length; i++) {
+      const rel = extras[i]
+      if (onProgress) onProgress(`Removing ${i + 1}/${extras.length}: ${rel}`)
+      try {
+        await deleteFile(rel)
+        deleted++
+      } catch (e) {
+        // A file we could not delete is still in the folder, so it is a leftover — say so
+        // rather than claim an exact replacement.
+        warnings.push(`${rel}: could not be deleted (${e.message || String(e)})`)
+        leftovers.push(rel)
+      }
+    }
+  }
+
   // The row goes last: if the files failed we would rather not claim the project
   // imported cleanly.
   await saveProjectRow(bundle.project, projectExists)
-
-  const bundlePaths = new Set(bundle.files.map((f) => f.path))
-  const leftovers = (existingRels || []).filter((rel) => !bundlePaths.has(rel))
 
   // Chat is applied last and is best-effort: a message that fails to write is one message
   // fewer in the thread, never a reason to fail an otherwise-successful import.
@@ -245,7 +277,7 @@ export async function applyProjectBundle({
     }
   }
 
-  return { name, written, warnings, leftovers, chatWritten, chatSkipped }
+  return { name, written, deleted, warnings, leftovers, chatWritten, chatSkipped }
 }
 
 /** Trigger a browser download of the bundle. */

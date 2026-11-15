@@ -20,7 +20,7 @@ export async function loadChatHistoryForProject() {
   }
   try {
     const rows = await freezr.query(
-      'chat_history',
+      'chatHistory',
       { project_name: state.currentProject.name },
       { sort: { _date_modified: 1 }, count: 200 }
     )
@@ -61,7 +61,7 @@ export async function appendChatHistory(threadId, role, content, filesChanged = 
   if (!state.currentProject) return
   const timestamp = Date.now()
   try {
-    await freezr.create('chat_history', {
+    await freezr.create('chatHistory', {
       project_name: state.currentProject.name,
       thread_id: threadId,
       role,
@@ -74,7 +74,7 @@ export async function appendChatHistory(threadId, role, content, filesChanged = 
       checkpoint_path: checkpointPath
     }, {})
   } catch (e) {
-    console.warn('Orbit: chat_history save failed', e)
+    console.warn('Orbit: chatHistory save failed', e)
   }
   return timestamp
 }

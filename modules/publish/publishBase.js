@@ -16,6 +16,16 @@
  * fileStructure) and <img> srcs are rewritten to absolute public URLs at publish time, so a <base>
  * only governs what is left: the run-time fetches we need to fix.
  *
+ * The same resolution rule bites page-level navigation code: history.pushState/replaceState
+ * resolve a RELATIVE url argument against this <base>, not against the real address bar URL. A
+ * slide deck's "put the slide number in the hash" call (e.g. history.replaceState(null, '', '#3'))
+ * would silently overwrite a custom short public id with the canonical public path. The stock
+ * deck template guards against this with a one-time global patch that rebases any history write
+ * against the real address bar URL instead (a deck's navigation code may be hand-written and its
+ * call sites unknown, so a global patch is used rather than a fix at each call site) — see
+ * modules/slideshow/deckHistoryFix.js. A project whose deck predates this patch can be repaired
+ * from Settings & Projects -> Transform -> "Fix slide URL tracking".
+ *
  * Pure string/URL work, no I/O.
  */
 import { normalizeRelPath, publicPath } from './publishPaths.js'

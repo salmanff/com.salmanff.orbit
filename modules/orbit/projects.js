@@ -144,7 +144,7 @@ export async function deleteProject(name, onProgress) {
     warnings.push('Could not delete project record: ' + (e.message || String(e)))
   }
   try {
-    await freezr.delete('chat_history', { project_name: name })
+    await freezr.delete('chatHistory', { project_name: name })
   } catch (_) { /* non-fatal */ }
   return { deleted, warnings }
 }

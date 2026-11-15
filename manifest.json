@@ -37,7 +37,7 @@
     { "path": "modules/orbit/filesData.js", "Description": "Draft folder listing, publish status, and project-reference cleanup on rename/delete." },
     { "path": "modules/orbit/permissions.js", "Description": "Loads and caches this app's permission grants and re-checks before publishing." },
     { "path": "modules/orbit/projects.js", "Description": "Project records: load, create, switch, persist pages, delete." },
-    { "path": "modules/orbit/slideshowSync.js", "Description": "Keeps slides.json and a deck's hardcoded slide list in step, and converts projects to slide shows." },
+    { "path": "modules/orbit/slideshowSync.js", "Description": "Keeps slides.json and a deck's hardcoded slide list in step, converts projects to slide shows, and can patch a deck's navigation script against the <base>-href URL-rewrite bug." },
     { "path": "modules/orbit/slideActions.js", "Description": "Slide CRUD driven by the Slides tab: add, duplicate, delete, move, rename, preview." },
     { "path": "modules/orbit/editor.js", "Description": "CodeMirror mount, dirty flag, save, and the AI lock overlay." },
     { "path": "modules/orbit/preview.js", "Description": "Assembles the draft preview document (base href, tokenized assets, fetch runtime), refreshes the iframe, and opens the same document in a new tab for Draft." },
@@ -66,6 +66,7 @@
     { "path": "modules/publish/publishBase.js", "Description": "Injects a <base> into the published HTML so relative run-time fetches resolve even under a custom short public URL." },
     { "path": "modules/slideshow/slideshowModel.js", "Description": "Pure slide-show model helpers: slide list, deck page, manifest JSON, titles." },
     { "path": "modules/slideshow/slideshowTemplate.js", "Description": "Starter deck HTML/CSS/JS and slide files for new slide shows." },
+    { "path": "modules/slideshow/deckHistoryFix.js", "Description": "A one-time patch, prepended to a deck's navigation script, that rebases history.pushState/replaceState urls against the real address bar URL (custom public id included) instead of <base href>, and upgrades a project previously patched by an earlier disarming version." },
     { "path": "modules/slideshow/slideshowConvert.js", "Description": "Reconciles files, manifest and pages to work out what a project's slides actually are." },
     { "path": "modules/slideshow/deckSlideList.js", "Description": "Rewrites a deck's own hardcoded slide-list array literal in place." },
     { "path": "modules/slideshow/slideAssets.js", "Description": "Works out which files a single slide alone uses, so deleting it takes only those." },
@@ -139,7 +140,7 @@
         }
       }
     },
-    "chat_history": {
+    "chatHistory": {
       "field_names": {
         "project_name": {
           "type": "string"

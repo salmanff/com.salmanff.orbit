@@ -6,12 +6,12 @@
  * workspace: no Chat/Pages/Files tabs, no preview pane. That is what keeps "delete this
  * project" from ever sitting a click away from "edit this page".
  */
-import { state, draftBasePath, draftRelFilePaths, rememberProject } from './state.js'
+import { state, draftBasePath, rememberProject } from './state.js'
 import { escapeHtml, normalizeQueryRows } from './util.js'
 import { uploadText, uploadFile } from './fileIO.js'
-import { refreshFileList } from './filesData.js'
+import { listDraftFileRels, declaredProjectRels, unionRels } from './filesData.js'
 import { loadProjects, createProject, switchToProject, deleteProject } from './projects.js'
-import { convertProjectToSlideshow } from './slideshowSync.js'
+import { convertProjectToSlideshow, fixDeckHistoryNavigation } from './slideshowSync.js'
 import { handleRestoreCheckpoint } from './chat.js'
 import { updateLockOverlay } from './editor.js'
 import { refreshPreview } from './preview.js'
@@ -26,7 +26,7 @@ import {
   downloadBundle, approxBundleSize, isValidProjectName, chatDedupeKey
 } from '../projectTransfer.js'
 import {
-  listCheckpoints, deleteCheckpoint, CHECKPOINTS_MIN, CHECKPOINTS_MAX
+  listCheckpoints, deleteCheckpoint, saveCheckpoint, CHECKPOINTS_MIN, CHECKPOINTS_MAX
 } from '../checkpoints.js'
 
 const chatDeps = () => ({ render, refreshPreview, updateLockOverlay })
@@ -63,7 +63,7 @@ function renderVersionsBody(busy) {
   </div>`
 }
 
-/** The Transform sub-section body: convert and delete actions for the current project. */
+/** The Transform sub-section body: convert, repair and delete actions for the current project. */
 function renderTransformBody(proj, busy) {
   const isDeck = isSlideshow(proj)
   const canMakeSlideshow = !isDeck && Array.isArray(proj.pages) && proj.pages.length >= 2
@@ -72,9 +72,13 @@ function renderTransformBody(proj, busy) {
     : canMakeSlideshow
       ? `<button type="button" class="orbit-btn-sm orbit-btn-secondary orbit-proj-convert" data-convert-project="${escapeHtml(proj.name)}" title="Turn this multi-page project into a slide show" ${busy ? 'disabled' : ''}>Make into a slide show</button>`
       : '<p class="orbit-muted">Add a second page to turn this project into a slide show.</p>'
+  const fixUrlBtn = isDeck
+    ? `<button type="button" class="orbit-btn-sm orbit-btn-secondary orbit-proj-fixurl" data-fix-history="${escapeHtml(proj.name)}" title="Make the deck's navigation script write the slide number onto the real address bar URL, custom public URL included" ${busy ? 'disabled' : ''}>Fix slide URL tracking</button>`
+    : ''
   return `
     <div class="orbit-settings-body">
       ${convertBtn}
+      ${fixUrlBtn}
       <button type="button" class="orbit-btn-sm orbit-delete-page-btn" data-delete-project="${escapeHtml(proj.name)}" ${busy ? 'disabled' : ''}>Delete project</button>
     </div>`
 }
@@ -176,9 +180,9 @@ export function renderSettingsBody(projectSelectHtml) {
                 <span class="orbit-btn orbit-btn-secondary orbit-btn-sm">Import a project…</span>
               </label>
               <p class="orbit-settings-note">
-                Importing an export (.json) file creates a new project, or overwrites a project of the
-                same name (files not in the bundle are left alone; chat messages already present are
-                skipped).
+                Importing an export (.json) file creates a new project, or <strong style="display:inline;width:auto;margin:0">replaces</strong>
+                a project of the same name — files it does not contain are deleted, so the project ends
+                up exactly as it was exported. Chat messages already present are skipped.
               </p>
             </div>
           </div>
@@ -409,6 +413,28 @@ export function bindSettingsView() {
     })
   })
 
+  // ---- fix a deck's navigation script so it doesn't overwrite a custom public URL ----
+  document.querySelectorAll('[data-fix-history]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const name = btn.getAttribute('data-fix-history')
+      await runBusy(async () => {
+        try {
+          const result = await fixDeckHistoryNavigation(name)
+          setStatus(result.patchedFiles.length ? `Patched ${result.patchedFiles.join(', ')}.` : 'No changes needed.')
+          window.alert(
+            result.patchedFiles.length
+              ? `Patched ${result.patchedFiles.length} file(s) in "${name}":\n${result.patchedFiles.join('\n')}\n\nRe-publish the deck for the live site to pick this up. As you move between slides, the URL will now update using whatever address is actually showing (your custom public URL included) instead of the long default path.`
+              : `No changes needed — "${name}"'s deck already writes slide numbers onto the real address bar URL, or has no navigation script to patch.`
+          )
+        } catch (e) {
+          console.error('Orbit: fix deck history navigation failed', e)
+          setStatus('')
+          window.alert('Could not patch "' + name + '": ' + (e.message || String(e)))
+        }
+      })
+    })
+  })
+
   // ---- export ----
   document.getElementById('orbit-export-include-chat')?.addEventListener('change', (e) => {
     state.exportIncludeChat = !!e.target.checked
@@ -418,16 +444,36 @@ export function bindSettingsView() {
     if (!proj) return
     await runBusy(async () => {
       try {
-        // The export reads the folder listing, which may be stale if the user came straight
-        // here from another project.
-        await refreshFileList()
+        // Listed independently of the Files tab's own capped listing, so the bundle can never
+        // be a subset of what is actually in the folder without saying so.
+        setStatus('Listing project files…')
+        const listing = await listDraftFileRels(proj.name)
+
+        // Union with what the project RECORD declares. A folder listing is one source of
+        // truth and it has been wrong before — it once returned only root-level entries,
+        // quietly dropping every stylesheet under shared/ out of the export. The declared
+        // paths are the second source, and the dependable one: publish resolves them on
+        // every run, so a path here has demonstrably existed on disk.
+        const declared = declaredProjectRels(proj)
+        const exportRels = unionRels(listing.rels, declared)
+        const listingMissed = declared.filter((r) => !listing.rels.includes(r))
+
+        if (listing.incomplete) {
+          const go = window.confirm(
+            'The folder listing for "' + proj.name + '" came back incomplete (' +
+            listing.fileCount + ' file(s) seen).\n\n' +
+            'Files the project declares are included anyway, but anything it does not declare ' +
+            'may be missing. Export anyway?'
+          )
+          if (!go) { setStatus(''); return }
+        }
 
         let chatHistory = null
         let chatFetchFailed = false
         if (state.exportIncludeChat) {
           setStatus('Reading chat history…')
           try {
-            const rows = await freezr.query('chat_history', { project_name: proj.name }, { sort: { _date_modified: 1 }, count: 2000 })
+            const rows = await freezr.query('chatHistory', { project_name: proj.name }, { sort: { _date_modified: 1 }, count: 2000 })
             chatHistory = normalizeQueryRows(rows)
           } catch (e) {
             console.warn('Orbit: could not read chat history for export', e)
@@ -437,7 +483,7 @@ export function bindSettingsView() {
 
         const { bundle, warnings } = await buildProjectBundle({
           project: proj,
-          fileRels: draftRelFilePaths(),
+          fileRels: exportRels,
           fetchDraftBlob: (rel) => fetchUserBlob(`${draftBasePath()}/${rel}`),
           onProgress: setStatus,
           chatHistory
@@ -446,13 +492,21 @@ export function bindSettingsView() {
         downloadBundle(bundle, `${proj.name}-${stamp}.orbit.json`)
         const chatNote = bundle.chatHistory ? `, ${bundle.chatHistory.length} chat message${bundle.chatHistory.length === 1 ? '' : 's'}` : ''
         setStatus(`Exported ${bundle.files.length} file${bundle.files.length === 1 ? '' : 's'}${chatNote} (${approxBundleSize(bundle)}).`)
-        if (warnings.length || chatFetchFailed) {
+        if (warnings.length || chatFetchFailed || listingMissed.length) {
           window.alert(
             (warnings.length
               ? 'The export finished, but ' + warnings.length + ' file' + (warnings.length > 1 ? 's' : '') +
                 ' could not be read and were left out:\n\n' + warnings.join('\n')
               : '') +
-            (chatFetchFailed ? (warnings.length ? '\n\n' : '') + 'Chat history could not be read, so none was included in the export.' : '')
+            (listingMissed.length
+              ? (warnings.length ? '\n\n' : '') +
+                listingMissed.length + ' file(s) the project declares did not appear in the folder ' +
+                'listing and were added from the project record:\n' + listingMissed.join('\n') +
+                '\n\nThey are in the export. If they are also missing from the Files tab, the ' +
+                'folder listing is under-reporting and published pages may be incomplete — ' +
+                're-publish after importing.'
+              : '') +
+            (chatFetchFailed ? ((warnings.length || listingMissed.length) ? '\n\n' : '') + 'Chat history could not be read, so none was included in the export.' : '')
           )
         }
       } catch (e) {
@@ -480,11 +534,53 @@ export function bindSettingsView() {
     const name = bundle.project.name
     const exists = state.projects.some((p) => p.name === name)
     const chatCount = Array.isArray(bundle.chatHistory) ? bundle.chatHistory.length : 0
+
+    // An import that REPLACES has to be able to say what it is about to remove, so the target
+    // folder is listed up front — for ANY project, not just the open one. (Previously an import
+    // over a project the user did not have open never even looked, so its leftovers were neither
+    // deleted nor reported.) If the listing is not trustworthy we keep the old, additive
+    // behaviour rather than delete on a guess.
+    let existingRels = []
+    let canReplace = false
+    if (exists) {
+      try {
+        const listing = await listDraftFileRels(name)
+        existingRels = listing.rels
+        canReplace = !listing.incomplete
+      } catch (e) {
+        console.warn('Orbit: could not list the existing project before import', e)
+        canReplace = false
+      }
+    }
+    // Never delete a file the EXISTING project still declares, even when the incoming bundle
+    // omits it. A bundle built by an older, under-reporting export is missing exactly those
+    // files, and without this guard re-importing one would wipe the project's stylesheets.
+    const existingProj = state.projects.find((p) => p.name === name) || null
+    const protectedRels = new Set(declaredProjectRels(existingProj))
+    const deletableRels = existingRels.filter((rel) => !protectedRels.has(rel))
+
+    const bundlePaths = new Set(bundle.files.map((f) => f.path))
+    const toDelete = canReplace ? deletableRels.filter((rel) => !bundlePaths.has(rel)) : []
+    const protectedMissing = canReplace
+      ? [...protectedRels].filter((rel) => !bundlePaths.has(rel) && existingRels.includes(rel))
+      : []
+
     const ok = window.confirm(
       (exists
-        ? `A project called "${name}" already exists.\n\n` +
-          `Import will overwrite its pages and write ${bundle.files.length} file(s) over the ones in its folder. ` +
-          'Files not in the bundle are left in place.'
+        ? `Replace the project "${name}" with this bundle?\n\n` +
+          `${bundle.files.length} file(s) will be written` +
+          (toDelete.length
+            ? `, and ${toDelete.length} file(s) not in the bundle will be DELETED so the project ends up exactly as it was exported.`
+            : '.') +
+          (protectedMissing.length
+            ? `\n\n${protectedMissing.length} file(s) the project still uses are NOT in this bundle and will be kept:\n` +
+              protectedMissing.slice(0, 10).join('\n') +
+              (protectedMissing.length > 10 ? `\n…and ${protectedMissing.length - 10} more` : '') +
+              '\n\n(That usually means the bundle was made before the folder-listing fix.)'
+            : '') +
+          (canReplace
+            ? '\n\nA checkpoint is saved first, so this can be undone from Settings → Versions.'
+            : '\n\nIts folder could not be listed, so files not in the bundle will be left in place rather than deleted.')
         : `Import "${name}" — ${bundle.files.length} file(s)?`) +
       (chatCount ? `\n\nIncludes ${chatCount} chat message${chatCount === 1 ? '' : 's'} (duplicates are skipped automatically).` : '') +
       '\n\nContinue?'
@@ -493,15 +589,36 @@ export function bindSettingsView() {
 
     await runBusy(async () => {
       try {
-        const importingCurrent = exists && state.currentProject?.name === name
-        if (importingCurrent) await refreshFileList()
+        // Anything about to be deleted gets a checkpoint first. Import is the one operation
+        // here that destroys work the user never explicitly selected, so it should always be
+        // recoverable from Settings → Versions.
+        if (toDelete.length && existingProj) {
+          setStatus('Saving a checkpoint before replacing…')
+          try {
+            await saveCheckpoint({
+              project: existingProj,
+              fileRels: existingRels,
+              fetchDraftBlob: (rel) => fetchUserBlob(`projects/${name}/draft/${rel}`),
+              trigger: 'manual',
+              label: 'Before importing ' + name
+            })
+          } catch (e) {
+            console.warn('Orbit: pre-import checkpoint failed', e)
+            const go = window.confirm(
+              'The safety checkpoint could not be saved (' + (e.message || String(e)) + ').\n\n' +
+              'Continue the import anyway? ' + toDelete.length + ' file(s) would be deleted with no ' +
+              'automatic way back.'
+            )
+            if (!go) { setStatus(''); return }
+          }
+        }
 
         // Re-importing the same bundle, or passing it back and forth between two instances,
         // must not duplicate every chat message — compare against what this project has.
         let existingChatKeys = null
         if (chatCount) {
           try {
-            const rows = await freezr.query('chat_history', { project_name: name }, { sort: { _date_modified: 1 }, count: 2000 })
+            const rows = await freezr.query('chatHistory', { project_name: name }, { sort: { _date_modified: 1 }, count: 2000 })
             existingChatKeys = new Set(normalizeQueryRows(rows).map(chatDedupeKey))
           } catch (e) {
             console.warn('Orbit: could not read existing chat history before import', e)
@@ -511,13 +628,17 @@ export function bindSettingsView() {
 
         const result = await applyProjectBundle({
           bundle,
-          existingRels: importingCurrent ? draftRelFilePaths() : [],
+          existingRels: canReplace ? deletableRels : existingRels,
+          replaceAll: canReplace,
+          deleteFile: canReplace
+            ? (rel) => freezr.deleteFile(`projects/${name}/draft/${rel}`)
+            : undefined,
           uploadText,
           uploadFile,
           projectExists: exists,
           onProgress: setStatus,
           existingChatKeys,
-          createChatRecord: chatCount ? (rec) => freezr.create('chat_history', { ...rec, project_name: name }, {}) : undefined,
+          createChatRecord: chatCount ? (rec) => freezr.create('chatHistory', { ...rec, project_name: name }, {}) : undefined,
           saveProjectRow: async (row, alreadyExists) => {
             const fields = { ...row }
             delete fields.name
@@ -538,7 +659,8 @@ export function bindSettingsView() {
         })
         await loadProjects()
 
-        let msg = `Imported "${result.name}" — ${result.written} file(s) written.`
+        let msg = `Imported "${result.name}" — ${result.written} file(s) written` +
+          (result.deleted ? `, ${result.deleted} file(s) removed.` : '.')
         if (result.chatWritten || result.chatSkipped) {
           msg += ` ${result.chatWritten} chat message${result.chatWritten === 1 ? '' : 's'} added` +
             (result.chatSkipped ? `, ${result.chatSkipped} already present.` : '.')
@@ -546,9 +668,13 @@ export function bindSettingsView() {
         if (result.warnings.length) {
           msg += `\n\n${result.warnings.length} file(s) failed:\n` + result.warnings.join('\n')
         }
-        if (result.leftovers.length) {
-          msg += `\n\n${result.leftovers.length} file(s) already in the folder were not in the bundle and were left in place:\n` +
+        if (!canReplace && result.leftovers.length) {
+          msg += `\n\n${result.leftovers.length} file(s) already in the folder were not in the bundle. ` +
+            'They were left in place because the folder could not be listed reliably:\n' +
             result.leftovers.join('\n') + '\n\nDelete them from the Files tab if they are no longer wanted.'
+        }
+        if (result.deleted) {
+          msg += '\n\nIf this project had published pages, re-publish them so the live site matches.'
         }
         setStatus(`Imported "${result.name}".`)
         window.alert(msg)

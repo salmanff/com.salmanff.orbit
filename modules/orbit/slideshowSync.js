@@ -1,11 +1,13 @@
 /* global freezr */
-/** Keeps slides.json and a deck's hardcoded slide list in step, and converts projects to slide shows. */
+/** Keeps slides.json and a deck's hardcoded slide list in step, converts projects to slide shows,
+ * and can patch a deck's navigation script so its slide-number URL writes stay correct. */
 import { state } from './state.js'
 import { uploadText, fetchText } from './fileIO.js'
 import { refreshFileList } from './filesData.js'
 import { analyzeProject } from '../slideshow/slideshowConvert.js'
 import { deckTemplateContent } from '../slideshow/slideshowTemplate.js'
 import { deckPageIndex, slidesManifestJson } from '../slideshow/slideshowModel.js'
+import { patchHistoryNav } from '../slideshow/deckHistoryFix.js'
 
 export async function convertProjectToSlideshow(name, onProgress) {
   const proj = state.projects.find((p) => p.name === name)
@@ -49,4 +51,42 @@ export async function convertProjectToSlideshow(name, onProgress) {
   await freezr.updateFields('projects', { name }, { type: 'slideshow', pages, slides })
 
   return { slideCount: slides.length, skipped: skipped.length, keptDeck, readsManifest }
+}
+
+/**
+ * Patch a slideshow project's deck navigation script(s) so a RELATIVE history.pushState/
+ * replaceState url is rebased against the real address bar URL (custom public id included)
+ * instead of resolving against <base href> — see modules/slideshow/deckHistoryFix.js for why a
+ * global patch, not a rewrite of the deck's own call site, is the safe approach for a deck that
+ * may be hand-written. Also upgrades a project still carrying an earlier version of this patch
+ * that disarmed navigation entirely.
+ *
+ * Only scans the deck's declared JS files (never the HTML — a raw JS snippet has no safe place
+ * to live in a body fragment) and skips any that already carry the current patch and never call
+ * history.pushState/replaceState at all.
+ * @returns {Promise<{patchedFiles: string[]}>}
+ */
+export async function fixDeckHistoryNavigation(projectName) {
+  const proj = state.projects.find((p) => p.name === projectName)
+  if (!proj) throw new Error('Project not found')
+  const deck = proj.pages?.[deckPageIndex(proj)]
+  if (!deck) throw new Error('This project has no deck page')
+
+  const base = `projects/${projectName}/draft`
+  const candidates = (deck.js_files || []).filter(Boolean)
+  const patchedFiles = []
+  for (const rel of candidates) {
+    let text
+    try {
+      text = await fetchText(`${base}/${rel}`)
+    } catch (e) {
+      continue // file missing or unreadable — nothing to patch
+    }
+    const { text: patched, changed } = patchHistoryNav(text)
+    if (changed) {
+      await uploadText(`${base}/${rel}`, patched, 'text/javascript')
+      patchedFiles.push(rel)
+    }
+  }
+  return { patchedFiles }
 }

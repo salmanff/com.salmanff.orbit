@@ -7,6 +7,137 @@ import { unpublishSingleFile } from '../publishService.js'
 const MAX_FILES = 2000
 const MAX_DEPTH = 12
 
+// Export/import must see EVERY file, so they list independently of the Files tab's own
+// (deliberately cheaper) listing. A bundle that is quietly a subset of the folder is worse
+// than one that refuses to build, hence the much higher caps and the explicit `incomplete`.
+const LIST_MAX_FILES = 20000
+const LIST_MAX_DEPTH = 30
+
+// Guard against a cyclic or pathological tree; far deeper than any real project.
+const MAX_WALK_DEPTH = 40
+
+function normRel(p) {
+  if (!p || typeof p !== 'string') return ''
+  return p.replace(/^\/+/, '').replace(/\/+$/, '')
+}
+
+function uniqueOrdered(list) {
+  const seen = new Set()
+  const out = []
+  for (const item of list || []) {
+    if (!item || seen.has(item)) continue
+    seen.add(item)
+    out.push(item)
+  }
+  return out
+}
+
+/**
+ * Flatten whatever shape read_user_file_tree hands back into draft-relative file paths.
+ *
+ * This is the fix for the bug that made the Files tab, the export, the publish set and
+ * checkpoints all lose the same files at once. The previous code read `result.tree` as a flat
+ * array and skipped any node whose `type` was not exactly 'file' — so when the server nests a
+ * folder's contents under `children`, every file in `shared/` and `slides/` vanished without a
+ * word. (Publish still worked for CSS/JS only because buildPublishRelativePaths copies a page's
+ * DECLARED resources before it consults the listing at all, which is what disguised the fault.)
+ *
+ * So: walk children when present, accept `path`/`file` as aliases for `name`, and when `type`
+ * is missing infer folder-vs-file from whether the node carries children. Anything genuinely
+ * ambiguous is treated as a file — over-reporting shows a stray row in the Files tab, whereas
+ * under-reporting silently drops real work out of an export.
+ *
+ * @returns {{rel: string, mtimeMs: number|null}[]}
+ */
+function walkTree(nodes, prefix, out, depth) {
+  if (!Array.isArray(nodes) || depth > MAX_WALK_DEPTH) return out
+  for (const node of nodes) {
+    if (!node) continue
+    if (typeof node === 'string') {
+      const rel = normRel(node)
+      if (rel) out.push({ rel: prefix ? `${prefix}/${rel}` : rel, mtimeMs: null })
+      continue
+    }
+    const rawName = node.name || node.path || node.file || ''
+    const name = normRel(rawName)
+    if (!name) continue
+    const full = prefix ? `${prefix}/${name}` : name
+
+    const children = Array.isArray(node.children)
+      ? node.children
+      : (Array.isArray(node.files) ? node.files : null)
+    const isFolder = node.type === 'folder' || node.type === 'dir' || node.type === 'directory' ||
+      node.isDirectory === true || (!!children && node.type !== 'file')
+
+    if (isFolder) {
+      if (children) walkTree(children, full, out, depth + 1)
+      continue
+    }
+    out.push({ rel: full, mtimeMs: node.mtimeMs || node.mtime || null })
+  }
+  return out
+}
+
+/** Every file in a tree response, as draft-relative paths. Exported for reuse/testing. */
+export function collectTreeFiles(tree) {
+  return walkTree(Array.isArray(tree) ? tree : [], '', [], 0)
+}
+
+/**
+ * The draft-relative paths the project RECORD declares: every page's html/css/js and every
+ * slide's file.
+ *
+ * These are a second, independent source of truth, and a trustworthy one — publish resolves
+ * them on every run, so a path here has demonstrably existed on disk. Unioning them into the
+ * export means a future listing fault can shrink what we SEE without shrinking what we SAVE.
+ */
+export function declaredProjectRels(proj) {
+  const out = []
+  const push = (p) => { const r = normRel(p); if (r) out.push(r) }
+  for (const page of proj?.pages || []) {
+    if (!page) continue
+    push(page.html_file)
+    for (const f of page.css_files || []) push(f)
+    for (const f of page.js_files || []) push(f)
+  }
+  for (const s of proj?.slides || []) push(s?.file)
+  return uniqueOrdered(out)
+}
+
+/** Ordered union of two relative-path lists, first occurrence wins. */
+export function unionRels(...lists) {
+  const all = []
+  for (const list of lists) for (const r of list || []) all.push(normRel(r))
+  return uniqueOrdered(all.filter(Boolean)).sort()
+}
+
+/**
+ * Every file in a project's draft folder, draft-relative. Used by export and by import's
+ * replace mode — NOT by the Files tab.
+ * @param {string} projectName
+ * @returns {Promise<{rels: string[], incomplete: boolean, fileCount: number}>}
+ *   incomplete is true when the listing cannot be trusted to be exhaustive; callers must
+ *   then refuse to delete on the strength of it.
+ */
+export async function listDraftFileRels(projectName) {
+  if (!projectName) return { rels: [], incomplete: false, fileCount: 0 }
+  const url = '/feps/read_user_file_tree/' + encodeURIComponent(freezrMeta.appName)
+  const result = await freezr.apiRequest('POST', url, {
+    subPath: `projects/${projectName}/draft`,
+    readSubFolders: true,
+    maxFiles: LIST_MAX_FILES,
+    maxDepth: LIST_MAX_DEPTH,
+    includeMetadata: false
+  })
+  const rels = collectTreeFiles(result?.tree).map((f) => f.rel).sort()
+  const fileCount = typeof result?.fileCount === 'number' ? result.fileCount : rels.length
+  // fileCount > rels.length means the server counted more than we could account for — treat
+  // that as truncation even when it did not say so. A false positive here only makes an import
+  // refuse to delete, which is the safe direction to be wrong in.
+  const incomplete = !!(result?.incomplete || result?.truncated) || fileCount > rels.length
+  return { rels, incomplete, fileCount }
+}
+
 export async function refreshFileList() {
   const proj = state.currentProject
   if (!proj) { state.fileList = []; return [] }
@@ -20,17 +151,18 @@ export async function refreshFileList() {
       maxDepth: MAX_DEPTH,
       includeMetadata: true
     })
-    const tree = Array.isArray(result?.tree) ? result.tree : []
+    const files = collectTreeFiles(result?.tree)
     const out = []
     const mtimes = {}
-    for (const n of tree) {
-      if (!n || n.type !== 'file' || !n.name) continue
-      const full = `${base}/${n.name}`
+    for (const f of files) {
+      const full = `${base}/${f.rel}`
       out.push(full)
-      if (n.mtimeMs) mtimes[full] = n.mtimeMs
+      if (f.mtimeMs) mtimes[full] = f.mtimeMs
     }
     state.fileList = out.sort()
     state.fileMtimes = mtimes
+    // The UI hint stays on the server's own flags: unlike the export/import path it is not
+    // gating anything destructive, so a nagging false positive costs more than it saves.
     state.fileListIncomplete = !!(result?.incomplete || result?.truncated)
     state.fileListFileCount = typeof result?.fileCount === 'number' ? result.fileCount : out.length
     state.fileListMaxFiles = MAX_FILES
